@@ -1,5 +1,5 @@
 namespace eval ::optrace {
-  variable script "C:/Users/ignaciogarciae/vivado_projects/new_base_riscy_project/vivado/riscy/riscy.runs/impl_1/riscv_wrapper.tcl"
+  variable script "C:/Users/ignaciogarciae/vivado_projects/pdp_project_bram_pulp/hardware/vivado/riscy/riscy.runs/impl_1/riscv_wrapper.tcl"
   variable category "vivado_impl"
 }
 
@@ -113,17 +113,17 @@ OPTRACE "create in-memory project" START { }
   set_param project.singleFileAddWarning.threshold 0
 OPTRACE "create in-memory project" END { }
 OPTRACE "set parameters" START { }
-  set_property webtalk.parent_dir C:/Users/ignaciogarciae/vivado_projects/new_base_riscy_project/vivado/riscy/riscy.cache/wt [current_project]
-  set_property parent.project_path C:/Users/ignaciogarciae/vivado_projects/new_base_riscy_project/vivado/riscy/riscy.xpr [current_project]
-  set_property ip_output_repo C:/Users/ignaciogarciae/vivado_projects/new_base_riscy_project/vivado/riscy/riscy.cache/ip [current_project]
+  set_property webtalk.parent_dir C:/Users/ignaciogarciae/vivado_projects/pdp_project_bram_pulp/hardware/vivado/riscy/riscy.cache/wt [current_project]
+  set_property parent.project_path C:/Users/ignaciogarciae/vivado_projects/pdp_project_bram_pulp/hardware/vivado/riscy/riscy.xpr [current_project]
+  set_property ip_output_repo C:/Users/ignaciogarciae/vivado_projects/pdp_project_bram_pulp/hardware/vivado/riscy/riscy.cache/ip [current_project]
   set_property ip_cache_permissions {read write} [current_project]
   set_property XPM_LIBRARIES {XPM_CDC XPM_FIFO XPM_MEMORY} [current_project]
 OPTRACE "set parameters" END { }
 OPTRACE "add files" START { }
-  add_files -quiet C:/Users/ignaciogarciae/vivado_projects/new_base_riscy_project/vivado/riscy/riscy.runs/synth_1/riscv_wrapper.dcp
+  add_files -quiet C:/Users/ignaciogarciae/vivado_projects/pdp_project_bram_pulp/hardware/vivado/riscy/riscy.runs/synth_1/riscv_wrapper.dcp
   set_msg_config -source 4 -id {BD 41-1661} -limit 0
   set_param project.isImplRun true
-  add_files C:/Users/ignaciogarciae/vivado_projects/new_base_riscy_project/vivado/riscy/riscy.srcs/sources_1/bd/riscv/riscv.bd
+  add_files C:/Users/ignaciogarciae/vivado_projects/pdp_project_bram_pulp/hardware/vivado/riscy/riscy.srcs/sources_1/bd/riscv/riscv.bd
   set_param project.isImplRun false
 OPTRACE "read constraints: implementation" START { }
 OPTRACE "read constraints: implementation" END { }

@@ -31,254 +31,205 @@
 
 module riscv_ooc_top_level_wrapper #()
 (
-  // Clock and Reset
-  input  logic        clk_i,
-  input  logic        rst_ni,
-  input  logic        restart,
+    // Clock and Reset
+    input logic clk_i,
+    input logic rst_ni,
 
-  input  logic        clock_en_i,    // enable clock, otherwise it is gated
-  input  logic        test_en_i,     // enable all clock gates for testing
+    input logic pulp_clock_en_i,  // PULP clock enable (only used if PULP_CLUSTER = 1)
+    input logic scan_cg_en_i,  // Enable all clock gates for testing
 
-  // Core ID, Cluster ID and boot address are considered more or less static
-  input  logic [31:0] boot_addr_i,
-  input  logic [ 3:0] core_id_i,
-  input  logic [ 5:0] cluster_id_i,
+    // Core ID, Cluster ID, debug mode halt address and boot address are considered more or less static
+    input logic [31:0] boot_addr_i,
+    input logic [31:0] mtvec_addr_i,
+    input logic [31:0] dm_halt_addr_i,
+    input logic [31:0] hart_id_i,
+    input logic [31:0] dm_exception_addr_i,
 
-  // Instruction memory interface
-  output logic                         instr_req_o,
-  input  logic                         instr_gnt_i,
-  input  logic                         instr_rvalid_i,
-  output logic                  [31:0] instr_addr_o,
-  input  logic                  [31:0] instr_rdata_i,
+    // Instruction memory interface
+    output logic        instr_req_o,
+    input  logic        instr_gnt_i,
+    input  logic        instr_rvalid_i,
+    output logic [31:0] instr_addr_o,
+    input  logic [31:0] instr_rdata_i,
 
-  // Data memory interface
-  output logic        data_req_o,
-  input  logic        data_gnt_i,
-  input  logic        data_rvalid_i,
-  output logic        data_we_o,
-  output logic [3:0]  data_be_o,
-  output logic [31:0] data_addr_o,
-  output logic [31:0] data_wdata_o,
-  input  logic [31:0] data_rdata_i,
-  input  logic        data_err_i,
+    // Data memory interface
+    output logic        data_req_o,
+    input  logic        data_gnt_i,
+    input  logic        data_rvalid_i,
+    output logic        data_we_o,
+    output logic [ 3:0] data_be_o,
+    output logic [31:0] data_addr_o,
+    output logic [31:0] data_wdata_o,
+    input  logic [31:0] data_rdata_i,
 
-  // apu-interconnect
-  // handshake signals
-  output logic                       apu_master_req_o,
-  output logic                       apu_master_ready_o,
-  input logic                        apu_master_gnt_i,
-  // request channel
-  output logic [31:0]                 apu_master_operands_0_o,
-  output logic [31:0]                 apu_master_operands_1_o,
-  output logic [31:0]                 apu_master_operands_2_o,
-  output logic [5:0]                  apu_master_op_o,
-  output logic                        apu_master_type_o,
-  output logic [14:0]                 apu_master_flags_o,
-  // response channel
-  input logic                        apu_master_valid_i,
-  input logic [31:0]                 apu_master_result_i,
-  input logic [4:0]                  apu_master_flags_i,
+    // apu-interconnect
+    // handshake signals
+    output logic             apu_req_o,
+    input  logic             apu_gnt_i,
+    // request channel
+    output logic [2:0][31:0] apu_operands_o,
+    output logic [5:0]       apu_op_o,
+    output logic [14:0]      apu_flags_o,
+    // response channel
+    input  logic             apu_rvalid_i,
+    input  logic [31:0]      apu_result_i,
+    input  logic [4:0]       apu_flags_i,
 
-  // Interrupt inputs
-  input  logic        irq_i,                 // level sensitive IR lines
-  input  logic [4:0]  irq_id_i,
-  output logic        irq_ack_o,
-  output logic [4:0]  irq_id_o,
-  input  logic        irq_sec_i,
+    // Interrupt inputs
+    input  logic [31:0] irq_i,  // CLINT interrupts + CLINT extension interrupts
+    output logic        irq_ack_o,
+    output logic [ 4:0] irq_id_o,
 
-  output logic        sec_lvl_o,
+    // Debug Interface
+    input  logic debug_req_i,
+    output logic debug_havereset_o,
+    output logic debug_running_o,
+    output logic debug_halted_o,
 
-  // Debug Interface
-  input  logic        debug_req_i,
-  output logic        debug_gnt_o,
-  output logic        debug_rvalid_o,
-  input  logic [14:0] debug_addr_i,
-  input  logic        debug_we_i,
-  input  logic [31:0] debug_wdata_i,
-  output logic [31:0] debug_rdata_o,
-  output logic        debug_halted_o,
-  input  logic        debug_halt_i,
-  input  logic        debug_resume_i,
-
-  // CPU Control Signals
-  input  logic        fetch_enable_i,
-  output logic        core_busy_o,
-
-  input  logic        ext_perf_counters_i
+    // CPU Control Signals
+    input  logic fetch_enable_i,
+    output logic core_sleep_o
 );
 
     // Flip-flop signals
-    logic restart_ff;
-    logic clock_en_i_ff;
-    logic test_en_i_ff;
+    logic pulp_clock_en_i_ff;
+    logic scan_cg_en_i_ff;
     logic [31:0] boot_addr_i_ff;
-    logic [3:0] core_id_i_ff;
-    logic [5:0] cluster_id_i_ff;
-    logic instr_req_o_ff;
+    logic [31:0] mtvec_addr_i_ff;
+    logic [31:0] dm_halt_addr_i_ff;
+    logic [31:0] hart_id_i_ff;
+    logic [31:0] dm_exception_addr_i_ff;
     logic instr_gnt_i_ff;
     logic instr_rvalid_i_ff;
-    logic [31:0] instr_addr_o_ff;
     logic [31:0] instr_rdata_i_ff;
-    logic data_req_o_ff;
     logic data_gnt_i_ff;
     logic data_rvalid_i_ff;
+    logic [31:0] data_rdata_i_ff;
+    logic [31:0] apu_result_i_ff;
+    logic apu_gnt_i_ff;
+    logic apu_rvalid_i_ff;
+    logic [4:0] apu_flags_i_ff;
+    logic [31:0] irq_i_ff;
+    logic debug_req_i_ff;
+    logic fetch_enable_i_ff;
+
+    logic instr_req_o_ff;
+    logic [31:0] instr_addr_o_ff;
+    logic data_req_o_ff;
     logic data_we_o_ff;
     logic [3:0] data_be_o_ff;
     logic [31:0] data_addr_o_ff;
     logic [31:0] data_wdata_o_ff;
-    logic [31:0] data_rdata_i_ff;
-    logic data_err_i_ff;
-    logic apu_master_req_o_ff;
-    logic apu_master_ready_o_ff;
-    logic apu_master_gnt_i_ff;
-    logic [31:0] apu_master_operands_0_o_ff;
-    logic [31:0] apu_master_operands_1_o_ff;
-    logic [31:0] apu_master_operands_2_o_ff;
-    logic [5:0] apu_master_op_o_ff;
-    logic  apu_master_type_o_ff;
-    logic [14:0] apu_master_flags_o_ff;
-    logic apu_master_valid_i_ff;
-    logic [31:0] apu_master_result_i_ff;
-    logic [4:0] apu_master_flags_i_ff;
-    logic irq_i_ff;
-    logic [4:0] irq_id_i_ff;
+    logic apu_req_o_ff;
+    logic [2:0][31:0] apu_operands_o_ff;
+    logic [5:0] apu_op_o_ff;
+    logic [14:0] apu_flags_o_ff;
     logic irq_ack_o_ff;
     logic [4:0] irq_id_o_ff;
-    logic irq_sec_i_ff;
-    logic sec_lvl_o_ff;
-    logic debug_req_i_ff;
-    logic debug_gnt_o_ff;
-    logic debug_rvalid_o_ff;
-    logic [14:0] debug_addr_i_ff;
-    logic debug_we_i_ff;
-    logic [31:0] debug_wdata_i_ff;
-    logic [31:0] debug_rdata_o_ff;
+    logic debug_havereset_o_ff;
+    logic debug_running_o_ff;
     logic debug_halted_o_ff;
-    logic debug_halt_i_ff;
-    logic debug_resume_i_ff;
-    logic fetch_enable_i_ff;
-    logic core_busy_o_ff;
-    logic ext_perf_counters_i_ff;
+    logic core_sleep_o_ff;
 
     always_ff @(posedge clk_i) begin
-        instr_req_o            <= instr_req_o_ff;
+        pulp_clock_en_i_ff    <= pulp_clock_en_i;
+        scan_cg_en_i_ff       <= scan_cg_en_i;
+        boot_addr_i_ff        <= boot_addr_i;
+        mtvec_addr_i_ff       <= mtvec_addr_i;
+        dm_halt_addr_i_ff     <= dm_halt_addr_i;
+        hart_id_i_ff          <= hart_id_i;
+        dm_exception_addr_i_ff<= dm_exception_addr_i;
+        instr_gnt_i_ff        <= instr_gnt_i;
+        instr_rvalid_i_ff     <= instr_rvalid_i;
+        instr_rdata_i_ff      <= instr_rdata_i;
+        data_gnt_i_ff         <= data_gnt_i;
+        data_rvalid_i_ff      <= data_rvalid_i;
+        data_rdata_i_ff       <= data_rdata_i;
+        apu_result_i_ff       <= apu_result_i;
+        apu_gnt_i_ff          <= apu_gnt_i;
+        apu_rvalid_i_ff       <= apu_rvalid_i;
+        apu_flags_i_ff        <= apu_flags_i;
+        irq_i_ff              <= irq_i;
+        debug_req_i_ff        <= debug_req_i;
+        fetch_enable_i_ff     <= fetch_enable_i;
+        instr_req_o           <= instr_req_o_ff;
         instr_addr_o          <= instr_addr_o_ff;
-        data_req_o             <= data_req_o_ff;
-        data_we_o              <= data_we_o_ff;
-        data_be_o              <= data_be_o_ff;
-        data_addr_o            <= data_addr_o_ff;
-        data_wdata_o           <= data_wdata_o_ff;
-        apu_master_req_o       <= apu_master_req_o_ff;
-        apu_master_ready_o     <= apu_master_ready_o_ff;
-        apu_master_operands_0_o <= apu_master_operands_0_o_ff;
-        apu_master_operands_1_o <= apu_master_operands_1_o_ff;
-        apu_master_operands_2_o <= apu_master_operands_2_o_ff;
-        apu_master_op_o        <= apu_master_op_o_ff;
-        apu_master_type_o      <= apu_master_type_o_ff;
-        apu_master_flags_o     <= apu_master_flags_o_ff;
-        irq_ack_o              <= irq_ack_o_ff;
-        irq_id_o               <= irq_id_o_ff;
-        sec_lvl_o              <= sec_lvl_o_ff;
-        debug_gnt_o            <= debug_gnt_o_ff;
-        debug_rvalid_o         <= debug_rvalid_o_ff;
-        debug_rdata_o          <= debug_rdata_o_ff;
-        debug_halted_o         <= debug_halted_o_ff;
-        core_busy_o            <= core_busy_o_ff;
-        restart_ff        <= restart;
-        clock_en_i_ff     <= clock_en_i;
-        test_en_i_ff      <= test_en_i;
-        boot_addr_i_ff    <= boot_addr_i;
-        core_id_i_ff      <= core_id_i;
-        cluster_id_i_ff   <= cluster_id_i;
-        instr_gnt_i_ff    <= instr_gnt_i;
-        instr_rvalid_i_ff <= instr_rvalid_i;
-        instr_rdata_i_ff  <= instr_rdata_i;
-        data_gnt_i_ff     <= data_gnt_i;
-        data_rvalid_i_ff  <= data_rvalid_i;
-        data_rdata_i_ff   <= data_rdata_i;
-        data_err_i_ff     <= data_err_i;
-        apu_master_gnt_i_ff    <= apu_master_gnt_i;
-        apu_master_valid_i_ff  <= apu_master_valid_i;
-        apu_master_result_i_ff <= apu_master_result_i;
-        apu_master_flags_i_ff  <= apu_master_flags_i;
-        irq_i_ff          <= irq_i;
-        irq_id_i_ff       <= irq_id_i;
-        irq_sec_i_ff      <= irq_sec_i;
-        debug_req_i_ff    <= debug_req_i;
-        debug_addr_i_ff   <= debug_addr_i;
-        debug_we_i_ff     <= debug_we_i;
-        debug_wdata_i_ff  <= debug_wdata_i;
-        debug_halt_i_ff   <= debug_halt_i;
-        debug_resume_i_ff <= debug_resume_i;
-        fetch_enable_i_ff <= fetch_enable_i;
-        ext_perf_counters_i_ff <= ext_perf_counters_i;
+        data_req_o            <= data_req_o_ff;
+        data_we_o             <= data_we_o_ff;
+        data_be_o             <= data_be_o_ff;
+        data_addr_o           <= data_addr_o_ff;
+        data_wdata_o          <= data_wdata_o_ff;
+        apu_req_o             <= apu_req_o_ff;
+        apu_operands_o        <= apu_operands_o_ff;
+        apu_op_o              <= apu_op_o_ff;
+        apu_flags_o           <= apu_flags_o_ff;
+        irq_ack_o             <= irq_ack_o_ff;
+        irq_id_o              <= irq_id_o_ff;
+        debug_havereset_o     <= debug_havereset_o_ff;
+        debug_running_o       <= debug_running_o_ff;
+        debug_halted_o        <= debug_halted_o_ff;
+        core_sleep_o          <= core_sleep_o_ff;
     end
 
-
-
-
- // Instantiate the core module
- riscv_core
- #(
-  .N_EXT_PERF_COUNTERS (     0       ),
-  .FPU                 (     0       ),
-  .SHARED_FP           (     0       ),
-  .SHARED_FP_DIVSQRT   (     2       )
- )
- RISCV_CORE
-  (
-  .clk_i               (clk_i),
-  .rst_ni              (rst_ni),
-  .restart             (restart_ff),
-  .clock_en_i          (clock_en_i_ff),
-  .test_en_i           (test_en_i_ff),
-  .boot_addr_i         (boot_addr_i_ff),
-  .core_id_i           (core_id_i_ff),
-  .cluster_id_i        (cluster_id_i),
-  .instr_req_o         (instr_req_o_ff),
-  .instr_gnt_i         (instr_gnt_i_ff),
-  .instr_rvalid_i      (instr_rvalid_i_ff),
-  .instr_addr_o        (instr_addr_o_ff),
-  .instr_rdata_i       (instr_rdata_i_ff),
-  .data_req_o          (data_req_o_ff),
-  .data_gnt_i          (data_gnt_i_ff),
-  .data_rvalid_i       (data_rvalid_i_ff),
-  .data_we_o           (data_we_o_ff),
-  .data_be_o           (data_be_o_ff),
-  .data_addr_o         (data_addr_o_ff),
-  .data_wdata_o        (data_wdata_o_ff),
-  .data_rdata_i        (data_rdata_i_ff),
-  .data_err_i          (data_err_i_ff),
-  .apu_master_req_o    (apu_master_req_o_ff),
-  .apu_master_ready_o  (apu_master_ready_o_ff),
-  .apu_master_gnt_i    (apu_master_gnt_i_ff),
-  .apu_master_operands_0_o (apu_master_operands_0_o_ff),
-  .apu_master_operands_1_o (apu_master_operands_1_o_ff),
-  .apu_master_operands_2_o (apu_master_operands_2_o_ff),
-  .apu_master_op_o     (apu_master_op_o_ff),
-  .apu_master_type_o   (apu_master_type_o_ff),
-  .apu_master_flags_o  (apu_master_flags_o_ff),
-  .apu_master_valid_i  (apu_master_valid_i_ff),
-  .apu_master_result_i (apu_master_result_i_ff),
-  .apu_master_flags_i  (apu_master_flags_i_ff),
-  .irq_i               (irq_i_ff),
-  .irq_id_i            (irq_id_i_ff),
-  .irq_ack_o           (irq_ack_o_ff),
-  .irq_id_o            (irq_id_o_ff),
-  .irq_sec_i           (irq_sec_i_ff),
-  .sec_lvl_o           (sec_lvl_o_ff),
-  .debug_req_i         (debug_req_i_ff),
-  .debug_gnt_o         (debug_gnt_o_ff),
-  .debug_rvalid_o      (debug_rvalid_o_ff),
-  .debug_addr_i        (debug_addr_i_ff),
-  .debug_we_i          (debug_we_i_ff),
-  .debug_wdata_i       (debug_wdata_i_ff),
-  .debug_rdata_o       (debug_rdata_o_ff),
-  .debug_halted_o      (debug_halted_o_ff),
-  .debug_halt_i        (debug_halt_i_ff),
-  .debug_resume_i      (debug_resume_i_ff),
-  .fetch_enable_i      (fetch_enable_i_ff),
-  .core_busy_o         (core_busy_o_ff),
-  .ext_perf_counters_i (ext_perf_counters_i_ff)
+    // Instantiate the core module
+    cv32e40p_core #(
+    ) riscv_core (
+        .clk_i(clk_i),
+        .rst_ni(rst_ni),
+    
+        .pulp_clock_en_i(pulp_clock_en_i_ff),  // PULP clock enable (only used if PULP_CLUSTER = 1)
+        .scan_cg_en_i(scan_cg_en_i_ff),  // Enable all clock gates for testing
+    
+        // Core ID, Cluster ID, debug mode halt address and boot address are considered more or less static
+        .boot_addr_i(boot_addr_i_ff),
+        .mtvec_addr_i(mtvec_addr_i_ff),
+        .dm_halt_addr_i(dm_halt_addr_i_ff),
+        .hart_id_i(hart_id_i_ff),
+        .dm_exception_addr_i(dm_exception_addr_i_ff),
+    
+        // Instruction memory interface
+        .instr_req_o(instr_req_o_ff),
+        .instr_gnt_i(instr_gnt_i_ff),
+        .instr_rvalid_i(instr_rvalid_i_ff),
+        .instr_addr_o(instr_addr_o_ff),
+        .instr_rdata_i(instr_rdata_i_ff),
+    
+        // Data memory interface
+        .data_req_o(data_req_o_ff),
+        .data_gnt_i(data_gnt_i_ff),
+        .data_rvalid_i(data_rvalid_i_ff),
+        .data_we_o(data_we_o_ff),
+        .data_be_o(data_be_o_ff),
+        .data_addr_o(data_addr_o_ff),
+        .data_wdata_o(data_wdata_o_ff),
+        .data_rdata_i(data_rdata_i_ff),
+    
+        // apu-interconnect
+        // handshake signals
+        .apu_req_o(apu_req_o_ff),
+        .apu_gnt_i(apu_gnt_i_ff),
+        // request channel
+        .apu_operands_o(apu_operands_o_ff),
+        .apu_op_o(apu_op_o_ff),
+        .apu_flags_o(apu_flags_o_ff),
+        // response channel
+        .apu_rvalid_i(apu_rvalid_i_ff),
+        .apu_result_i(apu_result_i_ff),
+        .apu_flags_i(apu_flags_i_ff),
+    
+        // Interrupt inputs
+        .irq_i(irq_i_ff),  // CLINT interrupts + CLINT extension interrupts
+        .irq_ack_o(irq_ack_o_ff),
+        .irq_id_o(irq_id_o_ff),
+    
+        // Debug Interface
+        .debug_req_i(debug_req_i_ff),
+        .debug_havereset_o(debug_havereset_o_ff),
+        .debug_running_o(debug_running_o_ff),
+        .debug_halted_o(debug_halted_o_ff),
+    
+        // CPU Control Signals
+        .fetch_enable_i(fetch_enable_i_ff),
+        .core_sleep_o(core_sleep_o_ff)
  );
 endmodule
