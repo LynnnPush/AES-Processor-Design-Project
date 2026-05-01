@@ -109,6 +109,52 @@ module zynq_tb;
     assign sys_clk = zynq_tb.zynq_sys.riscv_i.processing_system7_0.inst.FCLK_CLK0;
     assign sys_rstn = zynq_tb.zynq_sys.riscv_i.processing_system7_0.inst.FCLK_RESET0_N;
    
+    //------------------------------------------------------------------------
+    // CPI stack pipeline tracer
+    //------------------------------------------------------------------------
+    // Logs per-cycle pipeline state to a CSV during the active fetch window.
+    // Post-processed by software/python_script/cpi_stack.py to produce a CPI
+    // stack breakdown (useful exec / data hazard / mem stall / branch / etc.).
+    integer trace_file = 0;
+    integer cycle_count = 0;
+    wire    fetch_en_w = zynq_tb.zynq_sys.riscv_i.riscv_top_bram_0.inst.fetch_enable_i;
+
+    initial begin
+        trace_file = $fopen("pipeline_trace.csv", "w");
+        $fwrite(trace_file,
+            "cycle,pc_if,pc_id,instr,is_decoding,id_ready,ex_ready,load_stall,jr_stall,misaligned_stall,branch_dec,pc_set,data_req,data_gnt,data_rvalid,if_busy,perf_imiss,instr_valid_id\n");
+    end
+
+    always @(posedge sys_clk) begin
+        if (sys_rstn && fetch_en_w) begin
+            cycle_count <= cycle_count + 1;
+            $fwrite(trace_file, "%0d,0x%08h,0x%08h,0x%08h,%0d,%0d,%0d,%0d,%0d,%0d,%0d,%0d,%0d,%0d,%0d,%0d,%0d,%0d\n",
+                cycle_count,
+                zynq_tb.zynq_sys.riscv_i.riscv_top_bram_0.inst.riscv_core.pc_if,
+                zynq_tb.zynq_sys.riscv_i.riscv_top_bram_0.inst.riscv_core.pc_id,
+                zynq_tb.zynq_sys.riscv_i.riscv_top_bram_0.inst.riscv_core.instr_rdata_id,
+                zynq_tb.zynq_sys.riscv_i.riscv_top_bram_0.inst.riscv_core.is_decoding,
+                zynq_tb.zynq_sys.riscv_i.riscv_top_bram_0.inst.riscv_core.id_stage_i.id_ready_o,
+                zynq_tb.zynq_sys.riscv_i.riscv_top_bram_0.inst.riscv_core.id_stage_i.ex_ready_i,
+                zynq_tb.zynq_sys.riscv_i.riscv_top_bram_0.inst.riscv_core.id_stage_i.load_stall,
+                zynq_tb.zynq_sys.riscv_i.riscv_top_bram_0.inst.riscv_core.id_stage_i.jr_stall,
+                zynq_tb.zynq_sys.riscv_i.riscv_top_bram_0.inst.riscv_core.id_stage_i.misaligned_stall,
+                zynq_tb.zynq_sys.riscv_i.riscv_top_bram_0.inst.riscv_core.branch_decision,
+                zynq_tb.zynq_sys.riscv_i.riscv_top_bram_0.inst.riscv_core.pc_set,
+                zynq_tb.zynq_sys.riscv_i.riscv_top_bram_0.inst.riscv_core.data_req_o,
+                zynq_tb.zynq_sys.riscv_i.riscv_top_bram_0.inst.riscv_core.data_gnt_i,
+                zynq_tb.zynq_sys.riscv_i.riscv_top_bram_0.inst.riscv_core.data_rvalid_i,
+                zynq_tb.zynq_sys.riscv_i.riscv_top_bram_0.inst.riscv_core.if_busy,
+                zynq_tb.zynq_sys.riscv_i.riscv_top_bram_0.inst.riscv_core.perf_imiss,
+                zynq_tb.zynq_sys.riscv_i.riscv_top_bram_0.inst.riscv_core.instr_valid_id
+            );
+        end
+    end
+
+    final begin
+        if (trace_file != 0) $fclose(trace_file);
+    end
+
     riscv_wrapper zynq_sys(
         .DDR_addr(),
         .DDR_ba(),
