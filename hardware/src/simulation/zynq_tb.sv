@@ -120,7 +120,7 @@ module zynq_tb;
     wire    fetch_en_w = zynq_tb.zynq_sys.riscv_i.riscv_top_bram_0.inst.fetch_enable_i;
 
     initial begin
-        trace_file = $fopen("pipeline_trace.csv", "w");
+        trace_file = $fopen("../../../../../../src/simulation/pipeline_trace.csv", "w");
         $fwrite(trace_file,
             "cycle,pc_if,pc_id,instr,is_decoding,id_ready,ex_ready,load_stall,jr_stall,misaligned_stall,branch_dec,pc_set,data_req,data_gnt,data_rvalid,if_busy,perf_imiss,instr_valid_id\n");
     end

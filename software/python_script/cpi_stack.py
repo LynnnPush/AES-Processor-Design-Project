@@ -77,9 +77,15 @@ def classify(r):
     return 'other_bubble'
 
 
+_SIM_DIR = os.path.normpath(
+    os.path.join(os.path.dirname(__file__), '..', '..', 'hardware', 'src', 'simulation')
+)
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('csv', nargs='?', default='pipeline_trace.csv')
+    ap.add_argument('csv', nargs='?',
+                    default=os.path.join(_SIM_DIR, 'pipeline_trace.csv'))
     ap.add_argument('--annotated', default=None,
                     help='Path for annotated CSV (default: <input>_classified.csv)')
     ap.add_argument('--no-annotated', action='store_true',
@@ -107,6 +113,8 @@ def main():
                 writer.writeheader()
 
             for raw in reader:
+                if any(raw.get(k) is None or raw.get(k) == '' for k in INT_COLS):
+                    continue
                 row = {k: int(raw[k]) for k in INT_COLS}
                 cat = classify(row)
                 counts[cat] += 1
