@@ -162,7 +162,12 @@ package cv32e40p_pkg;
     ALU_SHUF  = 7'b0111010,
     ALU_SHUF2 = 7'b0111011,
     ALU_PCKLO = 7'b0111000,
-    ALU_PCKHI = 7'b0111001
+    ALU_PCKHI = 7'b0111001,
+
+    // Scalar crypto (Zkne) - aes32esmi
+    // rd = rs1 ^ rot_left(MixCol_fwd(sbox(rs2[bs])), bs*8)
+    // Internal control code only; unrelated to the RISC-V opcode field.
+    ALU_AES32ESMI = 7'b1000000
 
   } alu_opcode_e;
 

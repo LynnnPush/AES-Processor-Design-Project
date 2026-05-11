@@ -83,6 +83,16 @@ module cv32e40p_alu
   logic        div_valid;
   logic [31:0] bmask;
 
+  // AES32 scalar-crypto unit result
+  logic [31:0] aes_result;
+
+  cv32e40p_aes aes_i (
+      .rs1_i   (operand_a_i),
+      .rs2_i   (operand_b_i),
+      .bs_i    (imm_vec_ext_i),
+      .result_o(aes_result)
+  );
+
   //////////////////////////////////////////////////////////////////////////////////////////
   //   ____            _   _ _   _                      _      _       _     _            //
   //  |  _ \ __ _ _ __| |_(_) |_(_) ___  _ __   ___  __| |    / \   __| | __| | ___ _ __  //
@@ -976,6 +986,9 @@ module cv32e40p_alu
 
       // Division Unit Commands
       ALU_DIV, ALU_DIVU, ALU_REM, ALU_REMU: result_o = result_div;
+
+      // Scalar crypto (Zkne)
+      ALU_AES32ESMI: result_o = aes_result;
 
       default: ;  // default case to suppress unique warning
     endcase

@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
+#include "aes_intrinsics.h"
 
 // S-box for SubBytes (precomputed substitution table)
 static const uint8_t sbox[256] = {
@@ -105,6 +106,48 @@ void add_round_key(uint8_t *state, uint8_t *round_key) {
     }
 }
 
+// Fused SubBytes + ShiftRows + MixColumns + AddRoundKey via aes32esmi.
+// For each output column c, acc is seeded with round_key[c] and four chained
+// aes32esmi calls XOR in the row-0..row-3 contributions taken from input
+// columns (c+0..c+3) mod 4 - the (c+r) mod 4 index pattern is exactly the
+// ShiftRows permutation.
+void aes_inner_round(uint8_t *state, uint8_t *rk) {
+    uint32_t *w  = (uint32_t *)state;
+    uint32_t *kw = (uint32_t *)rk;
+    uint32_t in0 = w[0], in1 = w[1], in2 = w[2], in3 = w[3];
+    uint32_t c0, c1, c2, c3;
+
+    // Column 0: rows from input columns 0,1,2,3
+    c0 = kw[0];
+    c0 = aes32esmi(c0, in0, 0);
+    c0 = aes32esmi(c0, in1, 1);
+    c0 = aes32esmi(c0, in2, 2);
+    c0 = aes32esmi(c0, in3, 3);
+
+    // Column 1: rows from input columns 1,2,3,0
+    c1 = kw[1];
+    c1 = aes32esmi(c1, in1, 0);
+    c1 = aes32esmi(c1, in2, 1);
+    c1 = aes32esmi(c1, in3, 2);
+    c1 = aes32esmi(c1, in0, 3);
+
+    // Column 2: rows from input columns 2,3,0,1
+    c2 = kw[2];
+    c2 = aes32esmi(c2, in2, 0);
+    c2 = aes32esmi(c2, in3, 1);
+    c2 = aes32esmi(c2, in0, 2);
+    c2 = aes32esmi(c2, in1, 3);
+
+    // Column 3: rows from input columns 3,0,1,2
+    c3 = kw[3];
+    c3 = aes32esmi(c3, in3, 0);
+    c3 = aes32esmi(c3, in0, 1);
+    c3 = aes32esmi(c3, in1, 2);
+    c3 = aes32esmi(c3, in2, 3);
+
+    w[0] = c0; w[1] = c1; w[2] = c2; w[3] = c3;
+}
+
 // Single block AES-128 encryption
 void aes128_encrypt_block(uint8_t *plaintext, uint8_t *round_keys, uint8_t *ciphertext) {
     uint8_t state[16];
@@ -113,12 +156,10 @@ void aes128_encrypt_block(uint8_t *plaintext, uint8_t *round_keys, uint8_t *ciph
     // Initial round
     add_round_key(state, round_keys);
 
-    // Main rounds (1 to 9)
+    // Main rounds (1 to 9) - fused via aes32esmi:
+    //   SubBytes + ShiftRows + MixColumns + AddRoundKey  ->  one chained step
     for (int round = 1; round < 10; round++) {
-        sub_bytes(state);
-        shift_rows(state);
-        mix_columns(state);
-        add_round_key(state, &round_keys[round * 16]);
+        aes_inner_round(state, &round_keys[round * 16]);
     }
 
     // Final round (10)

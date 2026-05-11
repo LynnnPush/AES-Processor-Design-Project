@@ -778,7 +778,10 @@ module cv32e40p_id_stage
     endcase
   end
 
-  assign imm_vec_ext_id = imm_vu_type[1:0];
+  // Reuse imm_vec_ext channel to forward the 2-bit byte-select (bs) of
+  // aes32esmi to the ALU. instr[31:30] holds bs for the Zkne encoding.
+  assign imm_vec_ext_id = (alu_operator == ALU_AES32ESMI) ? instr[31:30]
+                                                          : imm_vu_type[1:0];
 
 
   always_comb begin

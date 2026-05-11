@@ -600,8 +600,23 @@ module cv32e40p_decoder import cv32e40p_pkg::*; import cv32e40p_apu_core_pkg::*;
 
       OPCODE_OP: begin  // Register-Register ALU operation
 
+        // RISC-V scalar crypto (Zkne) - aes32esmi
+        // Encoding: bs[1:0] | 5'b10011 | rs2 | rs1 | 3'b000 | rd | 0110011
+        // Match before the prefix-{10,11} branches because bs occupies instr[31:30]
+        // and would otherwise alias with PULP bit-manip / vec FP decoding.
+        if (instr_rdata_i[14:12] == 3'b000 && instr_rdata_i[29:25] == 5'b10011) begin
+          alu_en              = 1'b1;
+          alu_operator_o      = ALU_AES32ESMI;
+          alu_op_a_mux_sel_o  = OP_A_REGA_OR_FWD;
+          alu_op_b_mux_sel_o  = OP_B_REGB_OR_FWD;
+          rega_used_o         = 1'b1;
+          regb_used_o         = 1'b1;
+          regfile_alu_we      = 1'b1;
+          // bs is forwarded to the ALU via imm_vec_ext (see id_stage override).
+        end
+
         // PREFIX 11
-        if (instr_rdata_i[31:30] == 2'b11) begin
+        else if (instr_rdata_i[31:30] == 2'b11) begin
           if (PULP_XPULP) begin
             //////////////////////////////
             // IMMEDIATE BIT-MANIPULATION
