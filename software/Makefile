@@ -4,6 +4,8 @@ ACC_DIR := acc
 INCLUDE_DIR := include
 OUTPUT_DIR := output
 BIN_DIR   := bin_files
+SIM_MEM_DIR  := ../hardware/src/sw/mem_files
+FPGA_MEM_DIR := ../hardware/src/sw/fpga/riscy/mem_files
 # Default configuration
 CONFIG = rv32-standard
 
@@ -64,6 +66,9 @@ soft: $(SOFT_OBJS) crt0.riscv.o
 	$(OBJCOPY) -O srec $(OUTPUT_DIR)/soft.elf $(OUTPUT_DIR)/soft.srec
 	$(PYTHON) python_script/srec_to_coe.py   $(OUTPUT_DIR)/soft.srec $(PYTHON_FLAGS_CODE) -o $(BIN_DIR)/code.coe
 	$(PYTHON) python_script/srec_to_coe.py   $(OUTPUT_DIR)/soft.srec $(PYTHON_FLAGS_DATA) -o $(BIN_DIR)/data.coe
+	@mkdir -p $(SIM_MEM_DIR) $(FPGA_MEM_DIR)
+	cp $(BIN_DIR)/code.coe $(BIN_DIR)/data.coe $(SIM_MEM_DIR)/
+	cp $(BIN_DIR)/code.coe $(BIN_DIR)/data.coe $(FPGA_MEM_DIR)/
 
 # Clean rule
 clean:
