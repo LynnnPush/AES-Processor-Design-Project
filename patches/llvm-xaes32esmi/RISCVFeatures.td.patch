@@ -1,0 +1,20 @@
+diff --git a/llvm/lib/Target/RISCV/RISCVFeatures.td b/llvm/lib/Target/RISCV/RISCVFeatures.td
+index f51fcf82077f..0b8901bcb3e8 100644
+--- a/llvm/lib/Target/RISCV/RISCVFeatures.td
++++ b/llvm/lib/Target/RISCV/RISCVFeatures.td
+@@ -1298,6 +1298,15 @@ def HasVendorXCVbi
+     : Predicate<"Subtarget->hasVendorXCVbi()">,
+       AssemblerPredicate<(all_of FeatureVendorXCVbi),
+                          "'XCVbi' (CORE-V Immediate Branching)">;
++
++// PDP project-10 custom extension
++def FeatureVendorXAes32esmi
++    : RISCVExtension<1, 0, "Custom aes32esmi (PDP project-10)">;
++def HasVendorXAes32esmi
++    : Predicate<"Subtarget->hasVendorXAes32esmi()">,
++      AssemblerPredicate<(all_of FeatureVendorXAes32esmi),
++                         "'XAes32esmi' (custom aes32esmi)">;
++
+ // MIPS Extensions
+ 
+ def FeatureVendorXMIPSCMov

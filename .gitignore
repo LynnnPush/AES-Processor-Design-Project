@@ -2,4 +2,18 @@ vivado
 *.jou
 *.log
 .Xil
+<<<<<<< HEAD
 NA
+=======
+NA
+
+# Vivado strays
+vivado_pid*.str
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+__pycache__/
+*.pyc
+>>>>>>> c604b1b (Initial commit with Path B xaes32esmi LLVM builtin)

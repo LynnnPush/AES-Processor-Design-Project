@@ -24,4 +24,8 @@ open_wave_config ./src/simulation/zynq_tb_behav.wcfg
 restart
 
 # Run simulation until it finishes (e.g., until $finish or simulation time ends)
+<<<<<<< HEAD
 run -all
+=======
+run -all
+>>>>>>> c604b1b (Initial commit with Path B xaes32esmi LLVM builtin)

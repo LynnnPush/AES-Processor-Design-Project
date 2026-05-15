@@ -1,0 +1,22 @@
+diff --git a/llvm/lib/Target/RISCV/RISCVInstrInfoXAes32esmi.td b/llvm/lib/Target/RISCV/RISCVInstrInfoXAes32esmi.td
+new file mode 100644
+index 000000000000..3660eee4f39d
+--- /dev/null
++++ b/llvm/lib/Target/RISCV/RISCVInstrInfoXAes32esmi.td
+@@ -0,0 +1,16 @@
++//===- RISCVInstrInfoXAes32esmi.td - PDP project-10 custom AES *- tablegen -*-===//
++//
++// Custom aes32esmi instruction implemented on the project's riscy core.
++// Uses the same encoding as the standard Zkne aes32esmi (funct5=0b10011,
++// OPC_OP, funct3=0, bs in Inst[31:30]) but is gated on the project-local
++// XAes32esmi feature so it can be enabled independently of full Zkne.
++//
++//===----------------------------------------------------------------------===//
++
++let Predicates = [HasVendorXAes32esmi, IsRV32] in {
++def XAES32ESMI : RVKByteSelect<0b10011, "xaes32esmi">;
++} // Predicates = [HasVendorXAes32esmi, IsRV32]
++
++let Predicates = [HasVendorXAes32esmi, IsRV32] in {
++def : PatGprGprByteSelect<int_riscv_xaes32esmi, XAES32ESMI>;
++} // Predicates = [HasVendorXAes32esmi, IsRV32]

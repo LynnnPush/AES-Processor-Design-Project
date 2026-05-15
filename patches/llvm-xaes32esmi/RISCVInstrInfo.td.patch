@@ -1,0 +1,12 @@
+diff --git a/llvm/lib/Target/RISCV/RISCVInstrInfo.td b/llvm/lib/Target/RISCV/RISCVInstrInfo.td
+index baf2bae367df..4a8f83ffe936 100644
+--- a/llvm/lib/Target/RISCV/RISCVInstrInfo.td
++++ b/llvm/lib/Target/RISCV/RISCVInstrInfo.td
+@@ -2184,6 +2184,7 @@ include "RISCVInstrInfoXqci.td"
+ include "RISCVInstrInfoXqccmp.td"
+ include "RISCVInstrInfoXMips.td"
+ include "RISCVInstrInfoXRivos.td"
++include "RISCVInstrInfoXAes32esmi.td"
+ 
+ //===----------------------------------------------------------------------===//
+ // Global ISel

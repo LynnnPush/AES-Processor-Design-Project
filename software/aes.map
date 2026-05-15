@@ -880,12 +880,18 @@
     8652     8652        0     1                 .L0 
     8654     8654        0     1                 .L0 
     8654     8654        0     1                 .L0 
+<<<<<<< HEAD
     8654     8654      20e     2 .text.aes128_encrypt_block
     8654     8654      20e     2         main.o:(.text.aes128_encrypt_block)
+=======
+    8654     8654       60     2 .text.aes_inner_round
+    8654     8654       60     2         main.o:(.text.aes_inner_round)
+>>>>>>> c604b1b (Initial commit with Path B xaes32esmi LLVM builtin)
     8654     8654        0     1                 .L0 
     8654     8654        0     1                 .L0 
     8654     8654        0     1                 $x
     8654     8654        0     1                 .L0 
+<<<<<<< HEAD
     8654     8654      20e     1                 aes128_encrypt_block
     8668     8668        0     1                 .L0 
     866c     866c        0     1                 .L0 
@@ -1062,10 +1068,231 @@
     88b8     88b8        0     1                 .L0 
     88b8     88b8       be     2 .text.main
     88b8     88b8       be     2         main.o:(.text.main)
+=======
+    8654     8654       60     1                 aes_inner_round
+    8656     8656        0     1                 .L0 
+    8658     8658        0     1                 .L0 
+    865a     865a        0     1                 .L0 
+    865c     865c        0     1                 .L0 
+    8660     8660        0     1                 .L0 
+    8664     8664        0     1                 .L0 
+    8668     8668        0     1                 .L0 
+    866a     866a        0     1                 .L0 
+    866a     866a        0     1                 .L0 
+    866e     866e        0     1                 .L0 
+    866e     866e        0     1                 .L0 
+    8672     8672        0     1                 .L0 
+    8672     8672        0     1                 .L0 
+    8676     8676        0     1                 .L0 
+    8676     8676        0     1                 .L0 
+    867a     867a        0     1                 .L0 
+    867a     867a        0     1                 .L0 
+    867e     867e        0     1                 .L0 
+    867e     867e        0     1                 .L0 
+    8682     8682        0     1                 .L0 
+    8682     8682        0     1                 .L0 
+    8686     8686        0     1                 .L0 
+    8686     8686        0     1                 .L0 
+    868a     868a        0     1                 .L0 
+    868a     868a        0     1                 .L0 
+    868e     868e        0     1                 .L0 
+    868e     868e        0     1                 .L0 
+    8692     8692        0     1                 .L0 
+    8692     8692        0     1                 .L0 
+    8696     8696        0     1                 .L0 
+    8696     8696        0     1                 .L0 
+    869a     869a        0     1                 .L0 
+    869a     869a        0     1                 .L0 
+    869e     869e        0     1                 .L0 
+    869e     869e        0     1                 .L0 
+    86a2     86a2        0     1                 .L0 
+    86a2     86a2        0     1                 .L0 
+    86a6     86a6        0     1                 .L0 
+    86a6     86a6        0     1                 .L0 
+    86aa     86aa        0     1                 .L0 
+    86ac     86ac        0     1                 .L0 
+    86ae     86ae        0     1                 .L0 
+    86b0     86b0        0     1                 .L0 
+    86b2     86b2        0     1                 .L0 
+    86b4     86b4        0     1                 .L0 
+    86b4     86b4      1c4     2 .text.aes128_encrypt_block
+    86b4     86b4      1c4     2         main.o:(.text.aes128_encrypt_block)
+    86b4     86b4        0     1                 .L0 
+    86b4     86b4        0     1                 .L0 
+    86b4     86b4        0     1                 $x
+    86b4     86b4        0     1                 .L0 
+    86b4     86b4      1c4     1                 aes128_encrypt_block
+    86b8     86b8        0     1                 .L0 
+    86ba     86ba        0     1                 .L0 
+    8744     8744        0     1                 .L0 
+    8744     8744        0     1                 .L0 
+    874a     874a        0     1                 .L0 
+    874a     874a        0     1                 .L0 
+    874e     874e        0     1                 .L0 
+    8758     8758        0     1                 .L0 
+    875c     875c        0     1                 .L0 
+    8760     8760        0     1                 .L0 
+    8760     8760        0     1                 .L0 
+    8768     8768        0     1                 .L0 
+    8768     8768        0     1                 .L0 
+    8770     8770        0     1                 .L0 
+    8770     8770        0     1                 .L0 
+    8770     8770        0     1                 .L0 
+    8772     8772        0     1                 .L0 
+    8772     8772        0     1                 .L0 
+    8776     8776        0     1                 .L0 
+    8776     8776        0     1                 .L0 
+    877a     877a        0     1                 .L0 
+    877a     877a        0     1                 .L0 
+    877e     877e        0     1                 .L0 
+    877e     877e        0     1                 .L0 
+    8782     8782        0     1                 .L0 
+    8782     8782        0     1                 .L0 
+    8784     8784        0     1                 .L0 
+    8784     8784        0     1                 .L0 
+    8788     8788        0     1                 .L0 
+    8788     8788        0     1                 .L0 
+    878c     878c        0     1                 .L0 
+    878c     878c        0     1                 .L0 
+    8790     8790        0     1                 .L0 
+    8790     8790        0     1                 .L0 
+    8794     8794        0     1                 .L0 
+    8794     8794        0     1                 .L0 
+    8798     8798        0     1                 .L0 
+    8798     8798        0     1                 .L0 
+    879c     879c        0     1                 .L0 
+    879c     879c        0     1                 .L0 
+    87a0     87a0        0     1                 .L0 
+    87a0     87a0        0     1                 .L0 
+    87a4     87a4        0     1                 .L0 
+    87a4     87a4        0     1                 .L0 
+    87a8     87a8        0     1                 .L0 
+    87a8     87a8        0     1                 .L0 
+    87ac     87ac        0     1                 .L0 
+    87ac     87ac        0     1                 .L0 
+    87b0     87b0        0     1                 .L0 
+    87b0     87b0        0     1                 .L0 
+    87b4     87b4        0     1                 .L0 
+    87b4     87b4        0     1                 .L0 
+    87b8     87b8        0     1                 .L0 
+    87b8     87b8        0     1                 .L0 
+    87bc     87bc        0     1                 .L0 
+    87bc     87bc        0     1                 .L0 
+    87c0     87c0        0     1                 .L0 
+    87c0     87c0        0     1                 .L0 
+    87c4     87c4        0     1                 .L0 
+    87c4     87c4        0     1                 .L0 
+    87c8     87c8        0     1                 .L0 
+    87c8     87c8        0     1                 .L0 
+    87ca     87ca        0     1                 .L0 
+    87cc     87cc        0     1                 .L0 
+    87ce     87ce        0     1                 .L0 
+    87d2     87d2        0     1                 .L0 
+    87d6     87d6        0     1                 .L0 
+    87da     87da        0     1                 .L0 
+    87da     87da        0     1                 .L0 
+    87da     87da        0     1                 .L0 
+    87de     87de        0     1                 .L0 
+    87e4     87e4        0     1                 .L0 
+    87e8     87e8        0     1                 .L0 
+    87ea     87ea        0     1                 .L0 
+    87ee     87ee        0     1                 .L0 
+    87ee     87ee        0     1                 .L0 
+    87f2     87f2        0     1                 .L0 
+    87f6     87f6        0     1                 .L0 
+    87f6     87f6        0     1                 .L0 
+    87fa     87fa        0     1                 .L0 
+    87fe     87fe        0     1                 .L0 
+    8802     8802        0     1                 .L0 
+    8806     8806        0     1                 .L0 
+    880a     880a        0     1                 .L0 
+    880e     880e        0     1                 .L0 
+    8812     8812        0     1                 .L0 
+    8812     8812        0     1                 .L0 
+    8816     8816        0     1                 .L0 
+    8816     8816        0     1                 .L0 
+    881a     881a        0     1                 .L0 
+    881a     881a        0     1                 .L0 
+    881e     881e        0     1                 .L0 
+    8822     8822        0     1                 .L0 
+    8822     8822        0     1                 .L0 
+    8826     8826        0     1                 .L0 
+    8826     8826        0     1                 .L0 
+    882a     882a        0     1                 .L0 
+    882a     882a        0     1                 .L0 
+    882e     882e        0     1                 .L0 
+    882e     882e        0     1                 .L0 
+    8832     8832        0     1                 .L0 
+    8832     8832        0     1                 .L0 
+    8836     8836        0     1                 .L0 
+    8836     8836        0     1                 .L0 
+    883a     883a        0     1                 .L0 
+    883a     883a        0     1                 .L0 
+    883e     883e        0     1                 .L0 
+    883e     883e        0     1                 .L0 
+    8842     8842        0     1                 .L0 
+    8842     8842        0     1                 .L0 
+    8846     8846        0     1                 .L0 
+    8846     8846        0     1                 .L0 
+    884a     884a        0     1                 .L0 
+    884a     884a        0     1                 .L0 
+    884e     884e        0     1                 .L0 
+    884e     884e        0     1                 .L0 
+    8852     8852        0     1                 .L0 
+    8852     8852        0     1                 .L0 
+    8854     8854        0     1                 .L0 
+    8854     8854        0     1                 .L0 
+    8854     8854        0     1                 .L0 
+    8858     8858        0     1                 .L0 
+    8862     8862        0     1                 .L0 
+    8866     8866        0     1                 .L0 
+    886a     886a        0     1                 .L0 
+    886a     886a        0     1                 .L0 
+    8872     8872        0     1                 .L0 
+    8872     8872        0     1                 .L0 
+    8874     8874        0     1                 .L0 
+    8878     8878        0     1                 .L0 
+    8878     8878        0     1                 .L0 
+    8878     8878       40     2 .text.aes128_ecb_encrypt
+    8878     8878       40     2         main.o:(.text.aes128_ecb_encrypt)
+    8878     8878        0     1                 .L0 
+    8878     8878        0     1                 .L0 
+    8878     8878        0     1                 $x
+    8878     8878        0     1                 .L0 
+    8878     8878       40     1                 aes128_ecb_encrypt
+    8884     8884        0     1                 .L0 
+    8886     8886        0     1                 .L0 
+    8888     8888        0     1                 .L0 
+    888a     888a        0     1                 .L0 
+    888c     888c        0     1                 .L0 
+    888e     888e        0     1                 .L0 
+    888e     888e        0     1                 .L0 
+    8894     8894        0     1                 .L0 
+    8894     8894        0     1                 .L0 
+    8896     8896        0     1                 .L0 
+    8898     8898        0     1                 .L0 
+    8898     8898        0     1                 .L0 
+    8898     8898        0     1                 .L0 
+    889c     889c        0     1                 .L0 
+    88a0     88a0        0     1                 .L0 
+    88a4     88a4        0     1                 .L0 
+    88a4     88a4        0     1                 .L0 
+    88a6     88a6        0     1                 .L0 
+    88aa     88aa        0     1                 .L0 
+    88aa     88aa        0     1                 .L0 
+    88aa     88aa        0     1                 .L0 
+    88b0     88b0        0     1                 .L0 
+    88b4     88b4        0     1                 .L0 
+    88b8     88b8        0     1                 .L0 
+    88b8     88b8        0     1                 .L0 
+    88b8     88b8        4     2 .text.write_to_address
+    88b8     88b8        4     2         main.o:(.text.write_to_address)
+>>>>>>> c604b1b (Initial commit with Path B xaes32esmi LLVM builtin)
     88b8     88b8        0     1                 .L0 
     88b8     88b8        0     1                 .L0 
     88b8     88b8        0     1                 $x
     88b8     88b8        0     1                 .L0 
+<<<<<<< HEAD
     88b8     88b8       be     1                 main
     88c2     88c2        0     1                 .L0 
     88c6     88c6        0     1                 .L0 
@@ -1123,6 +1350,91 @@
     8972     8972        0     1                 .L0 
     8976     8976        0     1                 .L0 
     8976     8976        0     1                 .L0 
+=======
+    88b8     88b8        4     1                 write_to_address
+    88ba     88ba        0     1                 .L0 
+    88bc     88bc        0     1                 .L0 
+    88bc     88bc       12     2 .text.write_v_to_address
+    88bc     88bc       12     2         main.o:(.text.write_v_to_address)
+    88bc     88bc        0     1                 .L0 
+    88bc     88bc        0     1                 .L0 
+    88bc     88bc        0     1                 $x
+    88bc     88bc        0     1                 .L0 
+    88bc     88bc       12     1                 write_v_to_address
+    88c0     88c0        0     1                 .L0 
+    88c0     88c0        0     1                 .L0 
+    88c2     88c2        0     1                 .L0 
+    88c2     88c2        0     1                 .L0 
+    88c4     88c4        0     1                 .L0 
+    88c8     88c8        0     1                 .L0 
+    88cc     88cc        0     1                 .L0 
+    88cc     88cc        0     1                 .L0 
+    88ce     88ce        0     1                 .L0 
+    88ce     88ce        0     1                 .L0 
+    88ce     88ce       be     2 .text.main
+    88ce     88ce       be     2         main.o:(.text.main)
+    88ce     88ce        0     1                 .L0 
+    88ce     88ce        0     1                 .L0 
+    88ce     88ce        0     1                 $x
+    88ce     88ce        0     1                 .L0 
+    88ce     88ce       be     1                 main
+    88d8     88d8        0     1                 .L0 
+    88dc     88dc        0     1                 .L0 
+    88f6     88f6        0     1                 .L0 
+    88f6     88f6        0     1                 .L0 
+    8906     8906        0     1                 .L0 
+    8906     8906        0     1                 .L0 
+    8912     8912        0     1                 .L0 
+    8912     8912        0     1                 .L0 
+    8916     8916        0     1                 .L0 
+    891a     891a        0     1                 .L0 
+    891a     891a        0     1                 .L0 
+    8926     8926        0     1                 .L0 
+    8926     8926        0     1                 .L0 
+    8928     8928        0     1                 .L0 
+    8928     8928        0     1                 .L0 
+    892c     892c        0     1                 .L0 
+    892c     892c        0     1                 .L0 
+    892e     892e        0     1                 .L0 
+    892e     892e        0     1                 .L0 
+    8932     8932        0     1                 .L0 
+    8932     8932        0     1                 .L0 
+    8934     8934        0     1                 .L0 
+    8934     8934        0     1                 .L0 
+    8938     8938        0     1                 .L0 
+    8938     8938        0     1                 .L0 
+    893a     893a        0     1                 .L0 
+    893a     893a        0     1                 .L0 
+    8942     8942        0     1                 .L0 
+    8946     8946        0     1                 .L0 
+    8946     8946        0     1                 .L0 
+    8952     8952        0     1                 .L0 
+    8952     8952        0     1                 .L0 
+    8956     8956        0     1                 .L0 
+    8956     8956        0     1                 .L0 
+    8956     8956        0     1                 .L0 
+    895a     895a        0     1                 .L0 
+    895e     895e        0     1                 .L0 
+    895e     895e        0     1                 .L0 
+    8962     8962        0     1                 .L0 
+    8962     8962        0     1                 .L0 
+    8964     8964        0     1                 .L0 
+    8968     8968        0     1                 .L0 
+    896a     896a        0     1                 .L0 
+    896a     896a        0     1                 .L0 
+    896c     896c        0     1                 .L0 
+    896c     896c        0     1                 .L0 
+    896c     896c        0     1                 .L0 
+    8974     8974        0     1                 .L0 
+    8974     8974        0     1                 .L0 
+    897c     897c        0     1                 .L0 
+    897c     897c        0     1                 .L0 
+    897e     897e        0     1                 .L0 
+    8980     8980        0     1                 .L0 
+    8988     8988        0     1                 .L0 
+    898c     898c        0     1                 .L0 
+    898c     898c        0     1                 .L0 
+>>>>>>> c604b1b (Initial commit with Path B xaes32esmi LLVM builtin)
   100000   100000      13a     1 .rodata
   100000   100000        0     1         . = ALIGN(4)
   100000   100000      100     1         main.o:(.rodata.sbox)
@@ -1153,7 +1465,11 @@
   10013c   10013c        0     1 .bss
   10013c   10013c        0     1         . = ALIGN(4)
   10013c   10013c        0     1         _end = .
+<<<<<<< HEAD
        0        0      3da     1 .debug_abbrev
+=======
+       0        0      3f5     1 .debug_abbrev
+>>>>>>> c604b1b (Initial commit with Path B xaes32esmi LLVM builtin)
        0        0       31     1         include/exceptions.o:(.debug_abbrev)
        0        0        0     1                 $d
       31       31       31     1         include/int.o:(.debug_abbrev)
@@ -1162,12 +1478,21 @@
       62       62        0     1                 $d
      124      124       cf     1         include/utils.o:(.debug_abbrev)
      124      124        0     1                 $d
+<<<<<<< HEAD
      1f3      1f3      1c8     1         main.o:(.debug_abbrev)
      1f3      1f3        0     1                 $d
      3bb      3bb       1f     1         crt0.riscv.o:(.debug_abbrev)
      3bb      3bb        0     1                 .L0 
      3bb      3bb        0     1                 $d
        0        0      d01     1 .debug_info
+=======
+     1f3      1f3      1e3     1         main.o:(.debug_abbrev)
+     1f3      1f3        0     1                 $d
+     3d6      3d6       1f     1         crt0.riscv.o:(.debug_abbrev)
+     3d6      3d6        0     1                 .L0 
+     3d6      3d6        0     1                 $d
+       0        0     122f     1 .debug_info
+>>>>>>> c604b1b (Initial commit with Path B xaes32esmi LLVM builtin)
        0        0       49     1         include/exceptions.o:(.debug_info)
        0        0        0     1                 $d
       49       49       8b     1         include/int.o:(.debug_info)
@@ -1176,12 +1501,21 @@
       d4       d4        0     1                 $d
      29c      29c       a8     1         include/utils.o:(.debug_info)
      29c      29c        0     1                 $d
+<<<<<<< HEAD
      344      344      70b     1         main.o:(.debug_info)
      344      344        0     1                 $d
      a4f      a4f      2b2     1         crt0.riscv.o:(.debug_info)
      a4f      a4f        0     1                 .L0 
      a4f      a4f        0     1                 $d
        0        0      116     1 .debug_rnglists
+=======
+     344      344      c1e     1         main.o:(.debug_info)
+     344      344        0     1                 $d
+     f62      f62      2cd     1         crt0.riscv.o:(.debug_info)
+     f62      f62        0     1                 .L0 
+     f62      f62        0     1                 $d
+       0        0      12f     1 .debug_rnglists
+>>>>>>> c604b1b (Initial commit with Path B xaes32esmi LLVM builtin)
        0        0       1a     1         include/exceptions.o:(.debug_rnglists)
        0        0        0     1                 $d
        c        c        0     1                 .L0 
@@ -1194,6 +1528,7 @@
       69       69       1a     1         include/utils.o:(.debug_rnglists)
       69       69        0     1                 $d
       75       75        0     1                 .L0 
+<<<<<<< HEAD
       83       83       78     1         main.o:(.debug_rnglists)
       83       83        0     1                 $d
       8f       8f        0     1                 .L0 
@@ -1201,6 +1536,15 @@
       fb       fb        0     1                 $d
      107      107        0     1                 .L0 
        0        0      1e4     1 .debug_str_offsets
+=======
+      83       83       91     1         main.o:(.debug_rnglists)
+      83       83        0     1                 $d
+      8f       8f        0     1                 .L0 
+     114      114       1b     1         crt0.riscv.o:(.debug_rnglists)
+     114      114        0     1                 $d
+     120      120        0     1                 .L0 
+       0        0      224     1 .debug_str_offsets
+>>>>>>> c604b1b (Initial commit with Path B xaes32esmi LLVM builtin)
        0        0       20     1         include/exceptions.o:(.debug_str_offsets)
        0        0        0     1                 $d
        8        8        0     1                 .L0 
@@ -1213,12 +1557,21 @@
       ec       ec       2c     1         include/utils.o:(.debug_str_offsets)
       ec       ec        0     1                 $d
       f4       f4        0     1                 .L0 
+<<<<<<< HEAD
      118      118       cc     1         main.o:(.debug_str_offsets)
      118      118        0     1                 $d
      120      120        0     1                 .L0 
        0        0      3c6     1 .debug_str
        0        0      3c6     1         <internal>:(.debug_str)
        0        0      12c     1 .debug_addr
+=======
+     118      118      10c     1         main.o:(.debug_str_offsets)
+     118      118        0     1                 $d
+     120      120        0     1                 .L0 
+       0        0      42a     1 .debug_str
+       0        0      42a     1         <internal>:(.debug_str)
+       0        0      1a0     1 .debug_addr
+>>>>>>> c604b1b (Initial commit with Path B xaes32esmi LLVM builtin)
        0        0       14     1         include/exceptions.o:(.debug_addr)
        0        0        0     1                 $d
        8        8        0     1                 .L0 
@@ -1231,14 +1584,24 @@
       60       60       18     1         include/utils.o:(.debug_addr)
       60       60        0     1                 $d
       68       68        0     1                 .L0 
+<<<<<<< HEAD
       78       78       b4     1         main.o:(.debug_addr)
+=======
+      78       78      128     1         main.o:(.debug_addr)
+>>>>>>> c604b1b (Initial commit with Path B xaes32esmi LLVM builtin)
       78       78        0     1                 $d
       80       80        0     1                 .L0 
        0        0       d4     1 .comment
        0        0       d4     1         <internal>:(.comment)
+<<<<<<< HEAD
        0        0       57     1 .riscv.attributes
        0        0       57     1         <internal>:(.riscv.attributes)
        0        0      2fc     4 .debug_frame
+=======
+       0        0       65     1 .riscv.attributes
+       0        0       65     1         <internal>:(.riscv.attributes)
+       0        0      2f4     4 .debug_frame
+>>>>>>> c604b1b (Initial commit with Path B xaes32esmi LLVM builtin)
        0        0       44     4         include/exceptions.o:(.debug_frame)
        0        0        0     1                 .L0 
        0        0        0     1                 $d
@@ -1251,10 +1614,17 @@
      16c      16c       4c     4         include/utils.o:(.debug_frame)
      16c      16c        0     1                 .L0 
      16c      16c        0     1                 $d
+<<<<<<< HEAD
      1b8      1b8      144     4         main.o:(.debug_frame)
      1b8      1b8        0     1                 .L0 
      1b8      1b8        0     1                 $d
        0        0     14d9     1 .debug_line
+=======
+     1b8      1b8      13c     4         main.o:(.debug_frame)
+     1b8      1b8        0     1                 .L0 
+     1b8      1b8        0     1                 $d
+       0        0     1570     1 .debug_line
+>>>>>>> c604b1b (Initial commit with Path B xaes32esmi LLVM builtin)
        0        0       82     1         include/exceptions.o:(.debug_line)
        0        0        0     1                 .Lline_table_start0
        0        0        0     1                 $d
@@ -1267,6 +1637,7 @@
      3c9      3c9       c3     1         include/utils.o:(.debug_line)
      3c9      3c9        0     1                 .Lline_table_start0
      3c9      3c9        0     1                 $d
+<<<<<<< HEAD
      48c      48c      b71     1         main.o:(.debug_line)
      48c      48c        0     1                 .Lline_table_start0
      48c      48c        0     1                 $d
@@ -1276,21 +1647,45 @@
        0        0      158     1 .debug_line_str
        0        0      158     1         <internal>:(.debug_line_str)
        0        0      686     1 .debug_loclists
+=======
+     48c      48c      c08     1         main.o:(.debug_line)
+     48c      48c        0     1                 .Lline_table_start0
+     48c      48c        0     1                 $d
+    1094     1094      4dc     1         crt0.riscv.o:(.debug_line)
+    1094     1094        0     1                 .Lline_table_start0
+    1094     1094        0     1                 $d
+       0        0      18e     1 .debug_line_str
+       0        0      18e     1         <internal>:(.debug_line_str)
+       0        0      8c6     1 .debug_loclists
+>>>>>>> c604b1b (Initial commit with Path B xaes32esmi LLVM builtin)
        0        0      115     1         include/tcutils.o:(.debug_loclists)
        0        0        0     1                 $d
        c        c        0     1                 .L0 
      115      115       1f     1         include/utils.o:(.debug_loclists)
      115      115        0     1                 $d
      121      121        0     1                 .L0 
+<<<<<<< HEAD
      134      134      552     1         main.o:(.debug_loclists)
+=======
+     134      134      792     1         main.o:(.debug_loclists)
+>>>>>>> c604b1b (Initial commit with Path B xaes32esmi LLVM builtin)
      134      134        0     1                 $d
      140      140        0     1                 .L0 
        0        0       28     1 .debug_aranges
        0        0       28     1         crt0.riscv.o:(.debug_aranges)
        0        0        0     1                 $d
+<<<<<<< HEAD
        0        0      b50     4 .symtab
        0        0      b50     4         <internal>:(.symtab)
        0        0      33a     1 .shstrtab
        0        0      33a     1         <internal>:(.shstrtab)
        0        0      490     1 .strtab
        0        0      490     1         <internal>:(.strtab)
+=======
+       0        0      b70     4 .symtab
+       0        0      b70     4         <internal>:(.symtab)
+       0        0      350     1 .shstrtab
+       0        0      350     1         <internal>:(.shstrtab)
+       0        0      4a3     1 .strtab
+       0        0      4a3     1         <internal>:(.strtab)
+>>>>>>> c604b1b (Initial commit with Path B xaes32esmi LLVM builtin)
