@@ -194,6 +194,10 @@ void aes128_encrypt_block(uint8_t *plaintext, uint8_t *round_keys, uint8_t *ciph
 
     // Main rounds (1 to 9) - fused via aes32esmi:
     //   SubBytes + ShiftRows + MixColumns + AddRoundKey  ->  one chained step
+    // Fully unrolled by the LLVM loop-unrolling pass: the trip count is a
+    // compile-time constant (9), so unroll(full) flattens the loop and
+    // removes the round-counter increment and back-edge branch entirely.
+    #pragma clang loop unroll(full)
     for (int round = 1; round < 10; round++) {
         aes_inner_round(state, &round_keys[round * 16]);
     }
