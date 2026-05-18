@@ -17,3 +17,5 @@ vivado_pid*.str
 __pycache__/
 *.pyc
 >>>>>>> c604b1b (Initial commit with Path B xaes32esmi LLVM builtin)
+# Claude Code local state
+.claude/
