@@ -1,0 +1,18 @@
+diff --git a/llvm/lib/Target/RISCV/RISCVFeatures.td b/llvm/lib/Target/RISCV/RISCVFeatures.td
+--- a/llvm/lib/Target/RISCV/RISCVFeatures.td
++++ b/llvm/lib/Target/RISCV/RISCVFeatures.td
+@@ -1307,6 +1307,14 @@ def HasVendorXAes32esmi
+     : Predicate<"Subtarget->hasVendorXAes32esmi()">,
+       AssemblerPredicate<(all_of FeatureVendorXAes32esmi),
+                          "'XAes32esmi' (custom aes32esmi)">;
++
++// PDP project-10 custom extension - aes32esi (final round, no MixColumns)
++def FeatureVendorXAes32esi
++    : RISCVExtension<1, 0, "Custom aes32esi (PDP project-10)">;
++def HasVendorXAes32esi
++    : Predicate<"Subtarget->hasVendorXAes32esi()">,
++      AssemblerPredicate<(all_of FeatureVendorXAes32esi),
++                         "'XAes32esi' (custom aes32esi)">;
+
+ // MIPS Extensions
+

@@ -83,14 +83,23 @@ module cv32e40p_alu
   logic        div_valid;
   logic [31:0] bmask;
 
-  // AES32 scalar-crypto unit result
+  // AES32 scalar-crypto unit results (middle round + final round)
   logic [31:0] aes_result;
+  logic [31:0] aes_fi_result;
 
   cv32e40p_aes aes_i (
       .rs1_i   (operand_a_i),
       .rs2_i   (operand_b_i),
       .bs_i    (imm_vec_ext_i),
       .result_o(aes_result)
+  );
+
+  // Final-round variant (xaes32esi): same operand wiring, no MixColumns.
+  cv32e40p_aes_fi aes_fi_i (
+      .rs1_i   (operand_a_i),
+      .rs2_i   (operand_b_i),
+      .bs_i    (imm_vec_ext_i),
+      .result_o(aes_fi_result)
   );
 
   //////////////////////////////////////////////////////////////////////////////////////////
@@ -989,6 +998,7 @@ module cv32e40p_alu
 
       // Scalar crypto (Zkne)
       ALU_AES32ESMI: result_o = aes_result;
+      ALU_AES32ESI:  result_o = aes_fi_result;
 
       default: ;  // default case to suppress unique warning
     endcase

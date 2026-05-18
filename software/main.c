@@ -148,6 +148,42 @@ void aes_inner_round(uint8_t *state, uint8_t *rk) {
     w[0] = c0; w[1] = c1; w[2] = c2; w[3] = c3;
 }
 
+// Fused SubBytes + ShiftRows + AddRoundKey via aes32esi (final round, no MixCol).
+// Same (c+r) mod 4 ShiftRows pattern as aes_inner_round; differs only in that
+// aes32esi places the sbox byte directly (no MixColumns mix) at byte position bs.
+void aes_final_round(uint8_t *state, uint8_t *rk) {
+    uint32_t *w  = (uint32_t *)state;
+    uint32_t *kw = (uint32_t *)rk;
+    uint32_t in0 = w[0], in1 = w[1], in2 = w[2], in3 = w[3];
+    uint32_t c0, c1, c2, c3;
+
+    c0 = kw[0];
+    c0 = aes32esi(c0, in0, 0);
+    c0 = aes32esi(c0, in1, 1);
+    c0 = aes32esi(c0, in2, 2);
+    c0 = aes32esi(c0, in3, 3);
+
+    c1 = kw[1];
+    c1 = aes32esi(c1, in1, 0);
+    c1 = aes32esi(c1, in2, 1);
+    c1 = aes32esi(c1, in3, 2);
+    c1 = aes32esi(c1, in0, 3);
+
+    c2 = kw[2];
+    c2 = aes32esi(c2, in2, 0);
+    c2 = aes32esi(c2, in3, 1);
+    c2 = aes32esi(c2, in0, 2);
+    c2 = aes32esi(c2, in1, 3);
+
+    c3 = kw[3];
+    c3 = aes32esi(c3, in3, 0);
+    c3 = aes32esi(c3, in0, 1);
+    c3 = aes32esi(c3, in1, 2);
+    c3 = aes32esi(c3, in2, 3);
+
+    w[0] = c0; w[1] = c1; w[2] = c2; w[3] = c3;
+}
+
 // Single block AES-128 encryption
 void aes128_encrypt_block(uint8_t *plaintext, uint8_t *round_keys, uint8_t *ciphertext) {
     uint8_t state[16];
@@ -162,10 +198,9 @@ void aes128_encrypt_block(uint8_t *plaintext, uint8_t *round_keys, uint8_t *ciph
         aes_inner_round(state, &round_keys[round * 16]);
     }
 
-    // Final round (10)
-    sub_bytes(state);
-    shift_rows(state);
-    add_round_key(state, &round_keys[10 * 16]);
+    // Final round (10) - fused via aes32esi:
+    //   SubBytes + ShiftRows + AddRoundKey  ->  one chained step (no MixCol)
+    aes_final_round(state, &round_keys[10 * 16]);
 
     memcpy(ciphertext, state, 16);
 }

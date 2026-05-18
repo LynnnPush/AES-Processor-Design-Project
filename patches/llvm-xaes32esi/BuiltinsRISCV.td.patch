@@ -1,0 +1,17 @@
+diff --git a/clang/include/clang/Basic/BuiltinsRISCV.td b/clang/include/clang/Basic/BuiltinsRISCV.td
+--- a/clang/include/clang/Basic/BuiltinsRISCV.td
++++ b/clang/include/clang/Basic/BuiltinsRISCV.td
+@@ -96,6 +96,13 @@ let Features = "xaes32esmi,32bit" in {
+ def xaes32esmi : RISCVBuiltin<"unsigned int(unsigned int, unsigned int, _Constant unsigned int)">;
+ } // Features = "xaes32esmi,32bit"
+
++//===----------------------------------------------------------------------===//
++// PDP project-10 custom XAes32esi extension (final round, no MixColumns).
++//===----------------------------------------------------------------------===//
++let Features = "xaes32esi,32bit" in {
++def xaes32esi : RISCVBuiltin<"unsigned int(unsigned int, unsigned int, _Constant unsigned int)">;
++} // Features = "xaes32esi,32bit"
++
+ let Features = "zkne,64bit" in {
+ def aes64es : RISCVBuiltin<"uint64_t(uint64_t, uint64_t)">;
+ def aes64esm : RISCVBuiltin<"uint64_t(uint64_t, uint64_t)">;

@@ -1,0 +1,13 @@
+diff --git a/llvm/include/llvm/IR/IntrinsicsRISCV.td b/llvm/include/llvm/IR/IntrinsicsRISCV.td
+--- a/llvm/include/llvm/IR/IntrinsicsRISCV.td
++++ b/llvm/include/llvm/IR/IntrinsicsRISCV.td
+@@ -1779,6 +1779,9 @@ def int_riscv_aes32esmi : ScalarCryptoByteSelect32,
+ // PDP project-10 custom XAes32esmi extension
+ def int_riscv_xaes32esmi : ScalarCryptoByteSelect32,
+                            ClangBuiltin<"__builtin_riscv_xaes32esmi">;
++// PDP project-10 custom XAes32esi extension (final round, no MixColumns)
++def int_riscv_xaes32esi  : ScalarCryptoByteSelect32,
++                           ClangBuiltin<"__builtin_riscv_xaes32esi">;
+
+ def int_riscv_aes64es   : ScalarCryptoGprGprIntrinsic64,
+                           ClangBuiltin<"__builtin_riscv_aes64es">;

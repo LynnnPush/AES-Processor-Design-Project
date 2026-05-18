@@ -167,7 +167,10 @@ package cv32e40p_pkg;
     // Scalar crypto (Zkne) - aes32esmi
     // rd = rs1 ^ rot_left(MixCol_fwd(sbox(rs2[bs])), bs*8)
     // Internal control code only; unrelated to the RISC-V opcode field.
-    ALU_AES32ESMI = 7'b1000000
+    ALU_AES32ESMI = 7'b1000000,
+    // Scalar crypto (Zkne) - aes32esi (final round, no MixColumns)
+    // rd = rs1 ^ rot_left(zext32(sbox(rs2[bs])), bs*8)
+    ALU_AES32ESI  = 7'b1000001
 
   } alu_opcode_e;
 
