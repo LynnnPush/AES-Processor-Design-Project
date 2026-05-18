@@ -207,9 +207,9 @@ Each cycle of `pipeline_trace.csv` is classified into exactly one bucket (priori
 | `fetch_drain` | post-flush refill, `!instr_valid_id && !if_busy` |
 | `other_bubble` | everything else |
 
-The baseline CPI stack is checked in at `cpi_stack.png`:
+The baseline CPI stack is checked in at `cpi_stack_baseline.png`:
 
-![baseline CPI stack](./cpi_stack.png)
+![baseline CPI stack](./cpi_stack_baseline.png)
 
 Total ≈ 59 590 cycles for the baseline run, dominated by `useful_execution` (~37 k) and `ifetch_miss` (~18 k). The large `ifetch_miss` slice reflects the 2-cycle BRAM read latency on the instruction memory port.
 
