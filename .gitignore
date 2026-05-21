@@ -2,9 +2,6 @@ vivado
 *.jou
 *.log
 .Xil
-<<<<<<< HEAD
-NA
-=======
 NA
 
 # Vivado strays
@@ -16,4 +13,3 @@ vivado_pid*.str
 .DS_Store
 __pycache__/
 *.pyc
->>>>>>> c604b1b (Initial commit with Path B xaes32esmi LLVM builtin)

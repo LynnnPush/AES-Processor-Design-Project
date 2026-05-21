@@ -65,7 +65,8 @@ CATEGORIES = [
     'misaligned_stall',
     'branch_penalty',
     'jump_redirect',
-    'useful_execution',
+    'useful_aes',
+    'useful_other',
     'pipeline_backpressure',
     'ifetch_miss',
     'fetch_drain',
@@ -220,6 +221,8 @@ def decode_rv32(instr):
     f3 = (instr >> 12) & 0x7
     f7 = (instr >> 25) & 0x7f
     if op == 0x33:
+        if f3 == 0b000 and (f7 & 0x1f) == 0b10011: return 'aes32esmi'
+        if f3 == 0b000 and (f7 & 0x1f) == 0b10001: return 'aes32esi'
         if f7 == 0x01: return M_FUNCT3.get(f3, 'mext')
         if f3 == 0b000: return 'sub' if f7 == 0x20 else 'add'
         if f3 == 0b101: return 'sra' if f7 == 0x20 else 'srl'
@@ -313,6 +316,7 @@ def main():
     counts = Counter()
     func_cycle_counts = defaultdict(Counter)
     func_insn_count = Counter()
+    func_mnem_count = defaultdict(Counter)
     opcode_count = Counter()
     total_cycles = 0
     total_retired = 0
@@ -329,17 +333,32 @@ def main():
     with open(TRACE_CSV, newline='') as f_in, \
          open(CLASSIFIED_CSV, 'w', newline='') as f_out:
         reader = csv.DictReader(f_in)
-        writer = csv.DictWriter(f_out,
-                                fieldnames=reader.fieldnames + ['category'])
+        writer = csv.DictWriter(
+            f_out, fieldnames=reader.fieldnames + ['mnemonic', 'category'])
         writer.writeheader()
 
         for raw in reader:
             if any(raw.get(k) in (None, '') for k in INT_COLS):
                 continue
             row = {k: int(raw[k]) for k in INT_COLS}
+
+            # Decode the in-flight instruction once per row; reused for the
+            # trace mnemonic column, useful_aes/useful_other split, and the
+            # per-function opcode counters at retire.
+            try:
+                instr = parse_pc(raw['instr'])
+                mnem = decode_cached(instr)
+            except (KeyError, ValueError):
+                instr = None
+                mnem = ''
+
             cat = classify(row)
+            if cat == 'useful_execution':
+                cat = ('useful_aes' if mnem in ('aes32esmi', 'aes32esi')
+                       else 'useful_other')
             counts[cat] += 1
             total_cycles += 1
+            raw['mnemonic'] = mnem
             raw['category'] = cat
             writer.writerow(raw)
 
@@ -351,14 +370,11 @@ def main():
             func = lookup_function(pc, ranges)
             func_cycle_counts[func][cat] += 1
 
-            if row['is_decoding'] and row['id_ready']:
-                try:
-                    instr = parse_pc(raw['instr'])
-                except (KeyError, ValueError):
-                    continue
-                mnem = decode_cached(instr)
+            if row['is_decoding'] and row['id_ready'] and instr is not None:
                 func_insn_count[func] += 1
                 opcode_count[mnem] += 1
+                if mnem in ('aes32esmi', 'aes32esi'):
+                    func_mnem_count[func][mnem] += 1
                 total_retired += 1
 
     if total_cycles == 0:
@@ -369,7 +385,7 @@ def main():
     ordered = sorted(func_cycle_counts.items(),
                      key=lambda kv: -sum(kv[1].values()))
     _write_opcodes_csv(opcode_count, total_retired)
-    _write_attribution_csv(ordered, func_insn_count,
+    _write_attribution_csv(ordered, func_insn_count, func_mnem_count,
                            func_cycle_counts, total_retired)
     written = [CLASSIFIED_CSV, OPCODES_CSV, ATTRIBUTION_CSV]
     if _HAVE_MPL:
@@ -393,7 +409,7 @@ def _print_summaries(counts, func_cycle_counts, func_insn_count,
             continue
         print(f'{cat:<24} {n:>10} {n / total_cycles * 100:>7.2f}%')
 
-    useful = counts.get('useful_execution', 0)
+    useful = counts.get('useful_aes', 0) + counts.get('useful_other', 0)
     if useful:
         print(f'\nCPI = {total_cycles / useful:.3f} '
               f'(assuming 1 retire per useful cycle)')
@@ -420,7 +436,7 @@ def _print_summaries(counts, func_cycle_counts, func_insn_count,
                      key=lambda kv: -sum(kv[1].values()))
     for func, cc in ordered[:TOP_N]:
         cyc = sum(cc.values())
-        u = cc.get('useful_execution', 0)
+        u = cc.get('useful_aes', 0) + cc.get('useful_other', 0)
         insns = func_insn_count.get(func, 0)
         cpi = (cyc / u) if u else float('inf')
         print(f'{func:<28} {cyc:>9} {cyc / total_cycles * 100:>5.2f}% '
@@ -435,20 +451,25 @@ def _write_opcodes_csv(opcode_count, total_retired):
             w.writerow([mnem, n, f'{n / total_retired * 100:.4f}'])
 
 
-def _write_attribution_csv(ordered, func_insn_count,
+def _write_attribution_csv(ordered, func_insn_count, func_mnem_count,
                            func_cycle_counts, total_retired):
     cats = sorted({c for cc in func_cycle_counts.values() for c in cc})
     with open(ATTRIBUTION_CSV, 'w', newline='') as f:
         w = csv.writer(f)
         w.writerow(['function', 'insns', 'insns_pct',
+                    'aes32esmi_insns', 'aes32esi_insns',
                     'cycles', 'cpi'] + cats)
         for func, cc in ordered:
             cyc = sum(cc.values())
-            u = cc.get('useful_execution', 0)
+            u = cc.get('useful_aes', 0) + cc.get('useful_other', 0)
             insns = func_insn_count.get(func, 0)
+            mc = func_mnem_count.get(func, {})
+            aes_esmi = mc.get('aes32esmi', 0)
+            aes_esi  = mc.get('aes32esi', 0)
             cpi = f'{cyc / u:.4f}' if u else ''
             w.writerow([func, insns,
                         f'{insns / total_retired * 100:.4f}',
+                        aes_esmi, aes_esi,
                         cyc, cpi]
                        + [cc.get(c, 0) for c in cats])
 
@@ -476,23 +497,73 @@ def _plot_function_cycles(ordered, total_cycles):
     rest = ordered[keep:]
     labels = [f for f, _ in top]
     sizes = [sum(cc.values()) for _, cc in top]
+    aes_sizes = [cc.get('useful_aes', 0) for _, cc in top]
+
     rest_total = sum(sum(cc.values()) for _, cc in rest)
+    rest_aes = sum(cc.get('useful_aes', 0) for _, cc in rest)
     if rest_total > 0:
         labels.append(f'other ({len(rest)} funcs)')
         sizes.append(rest_total)
+        aes_sizes.append(rest_aes)
 
-    # Wider figure leaves room for the legend; bbox_inches='tight' at save
-    # time then crops back to the actual content (legend included).
-    fig, ax = plt.subplots(figsize=(11, 7))
-    wedges, _ = ax.pie(sizes, startangle=90,
-                       wedgeprops={'width': 0.4, 'edgecolor': 'white'})
-    legend_labels = [f'{l} — {s} ({s / total_cycles * 100:.1f}%)'
-                     for l, s in zip(labels, sizes)]
-    ax.legend(wedges, legend_labels,
-              loc='center left', bbox_to_anchor=(1.02, 0.5),
-              fontsize=9, frameon=False)
-    ax.set_title('Cycle attribution by function')
-    fig.savefig(FUNC_CYCLES_PNG, dpi=150, bbox_inches='tight')
+    non_aes_sizes = [s - a for s, a in zip(sizes, aes_sizes)]
+
+    # Wider figure leaves room for the (now long) two-legend stack; we also
+    # pass both legends to bbox_extra_artists so savefig's tight crop sees
+    # them as content rather than clipping at the figure edge.
+    fig, ax = plt.subplots(figsize=(15, 7))
+
+    # Outer ring: per function.
+    outer_wedges, _ = ax.pie(
+        sizes, radius=1.0, startangle=90,
+        wedgeprops={'width': 0.3, 'edgecolor': 'white'})
+
+    # Inner ring: each outer slice split into [AES useful, non-AES] cycles.
+    # Pick a colour that isn't already used by the tab10 outer-ring palette.
+    # tab10's C3 is #d62728 (assigned to memcpy here), so use a strong magenta
+    # instead to keep the AES sub-wedge visually distinct.
+    aes_color = '#e7298a'
+    non_aes_color = '#cccccc'
+    inner_sizes = []
+    inner_colors = []
+    for a, na in zip(aes_sizes, non_aes_sizes):
+        inner_sizes.extend([a, na])
+        inner_colors.extend([aes_color, non_aes_color])
+    ax.pie(inner_sizes, radius=0.7, startangle=90,
+           colors=inner_colors,
+           wedgeprops={'width': 0.25, 'edgecolor': 'white'})
+
+    def _fmt(label, total, aes):
+        if not total:
+            return f'{label} — 0'
+        pct = total / total_cycles * 100
+        base = f'{label} — {total} ({pct:.1f}%)'
+        if aes:
+            return f'{base} · AES {aes} ({aes / total * 100:.1f}%)'
+        return base
+
+    legend_labels = [_fmt(l, s, a)
+                     for l, s, a in zip(labels, sizes, aes_sizes)]
+    outer_legend = ax.legend(
+        outer_wedges, legend_labels,
+        loc='center left', bbox_to_anchor=(1.02, 0.5),
+        fontsize=9, frameon=False, title='function (outer ring)')
+    ax.add_artist(outer_legend)
+
+    from matplotlib.patches import Patch
+    inner_handles = [
+        Patch(facecolor=aes_color, label='aes32esmi/esi (useful)'),
+        Patch(facecolor=non_aes_color, label='non-AES cycles'),
+    ]
+    inner_legend = ax.legend(
+        handles=inner_handles,
+        loc='lower left', bbox_to_anchor=(1.02, -0.02),
+        fontsize=9, frameon=False, title='inner ring')
+
+    ax.set_title('Cycle attribution by function '
+                 '(inner ring: AES vs non-AES)')
+    fig.savefig(FUNC_CYCLES_PNG, dpi=150, bbox_inches='tight',
+                bbox_extra_artists=(outer_legend, inner_legend))
     plt.close(fig)
 
 
