@@ -101,6 +101,19 @@ module zynq_tb;
         main_core_execution();
 
         $display ("Simulation completed");
+        // Flush trace and kick off profiling before $stop. xsim does not
+        // execute `final` on $stop (it's a pause, not sim end), so we do
+        // the post-processing here while the GUI session stays open.
+        if (trace_file != 0) begin
+            $fclose(trace_file);
+            trace_file = 0;
+        end
+        // Detach: redirect output and fork into background so $system
+        // returns immediately. Synchronous $system here can race with
+        // Vivado's GUI wave reader and crash xsim (libxv_simbridge SEGV).
+        $display("[tb] launching profiling pipeline in background ...");
+        $system("../../../../../../../software/python_script/run_profiling.sh </dev/null >/tmp/run_profiling.log 2>&1 &");
+
         $stop;
     end
 
@@ -151,6 +164,10 @@ module zynq_tb;
         end
     end
 
+    // Safety net: if simulation actually ends (e.g. user invokes $finish or
+    // closes the session before the main initial block reaches $stop), make
+    // sure the trace file is closed. The profiling pipeline is launched from
+    // the main initial block above where $stop runs.
     final begin
         if (trace_file != 0) $fclose(trace_file);
     end
