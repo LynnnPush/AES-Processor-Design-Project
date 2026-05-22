@@ -29,5 +29,13 @@ write_checkpoint -force ./vivado/ooc_riscy/ooc_riscy.runs/ooc_synth/riscv_synth.
 report_timing_summary -delay_type min_max -report_unconstrained -check_timing_verbose -max_paths 10 -input_pins -routable_nets -name timing_1 -file ./vivado/ooc_riscy/ooc_riscy.runs/ooc_synth/ooc_timing_summary.txt
 
 # Report Utilization
-report_utilization -name utilization_1 
-report_utilization -cell [get_cells RISCV_CORE] -file ./vivado/ooc_riscy/ooc_riscy.runs/ooc_synth/ooc_utilization_summary.txt
+report_utilization -name utilization_1
+
+set core_cell [lindex [get_cells -hierarchical -filter {NAME =~ *riscv_core*}] 0]
+if {$core_cell eq ""} {
+    puts "WARNING: Could not find riscv_core cell, skipping per-cell utilization report"
+} else {
+    puts "Reporting utilization for cell: $core_cell"
+    report_utilization -cells [get_cells $core_cell] \
+        -file ./vivado/ooc_riscy/ooc_riscy.runs/ooc_synth/ooc_utilization_summary.txt
+}
