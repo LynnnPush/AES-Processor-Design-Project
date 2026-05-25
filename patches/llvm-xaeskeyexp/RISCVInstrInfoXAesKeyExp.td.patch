@@ -1,0 +1,88 @@
+--- /dev/null
++++ b/llvm/lib/Target/RISCV/RISCVInstrInfoXAesKeyExp.td
+@@ -0,0 +1,85 @@
++//===- RISCVInstrInfoXAesKeyExp.td - PDP project-10 custom AES *- tablegen -*-===//
++//
++// Custom AES-128 key-schedule instructions on the project's riscy core. These
++// drive a hidden 128-bit round-key register that is advanced one round key per
++// cycle, so the key schedule is generated on-the-fly between encryption rounds:
++//
++//   xaesksld rs1, widx : krk[widx] <- rs1      (seed a cipher-key word)
++//   xaeskse            : krk        <- KeyExpand(krk) (next round key, 1 cycle)
++//   xaesksrd rd,  widx : rd         <- krk[widx]      (read a round-key word)
++//
++// All three share OPC_OP / funct3=000 and a unique funct5 in Inst[29:25];
++// the 2-bit word index (load/read) sits in Inst[31:30], matching the riscy
++// decoder. Gated on the project-local XAesKeyExp feature.
++//
++//===----------------------------------------------------------------------===//
++
++//===----------------------------------------------------------------------===//
++// Instruction formats
++//===----------------------------------------------------------------------===//
++
++// Load: one GPR source, no destination, word index in Inst[31:30].
++// mayLoad/mayStore = 1 to match the intrinsics' IntrInaccessibleMemOnly
++// (hidden read+write of the key register), which TableGen infers from the
++// selection patterns; this also keeps the ops ordered and un-eliminated.
++let hasSideEffects = 1, mayLoad = 1, mayStore = 1 in
++class AESKS_Load<bits<5> funct5, string opcodestr>
++    : RVInstRBase<0b000, OPC_OP, (outs), (ins GPR:$rs1, byteselect:$widx),
++                  opcodestr, "$rs1, $widx"> {
++  bits<2> widx;
++  let rs2 = 0;
++  let rd  = 0;
++  let Inst{31-30} = widx;
++  let Inst{29-25} = funct5;
++}
++
++// Expand: no register operands, no immediate.
++// mayLoad/mayStore = 1 to match the intrinsics' IntrInaccessibleMemOnly
++// (hidden read+write of the key register), which TableGen infers from the
++// selection patterns; this also keeps the ops ordered and un-eliminated.
++let hasSideEffects = 1, mayLoad = 1, mayStore = 1 in
++class AESKS_Expand<bits<5> funct5, string opcodestr>
++    : RVInstRBase<0b000, OPC_OP, (outs), (ins), opcodestr, ""> {
++  let rs2 = 0;
++  let rs1 = 0;
++  let rd  = 0;
++  let Inst{31-30} = 0b00;
++  let Inst{29-25} = funct5;
++}
++
++// Read: GPR destination, word index in Inst[31:30].
++// mayLoad/mayStore = 1 to match the intrinsics' IntrInaccessibleMemOnly
++// (hidden read+write of the key register), which TableGen infers from the
++// selection patterns; this also keeps the ops ordered and un-eliminated.
++let hasSideEffects = 1, mayLoad = 1, mayStore = 1 in
++class AESKS_Read<bits<5> funct5, string opcodestr>
++    : RVInstRBase<0b000, OPC_OP, (outs GPR:$rd), (ins byteselect:$widx),
++                  opcodestr, "$rd, $widx"> {
++  bits<2> widx;
++  let rs2 = 0;
++  let rs1 = 0;
++  let Inst{31-30} = widx;
++  let Inst{29-25} = funct5;
++}
++
++//===----------------------------------------------------------------------===//
++// Instructions
++//===----------------------------------------------------------------------===//
++
++let Predicates = [HasVendorXAesKeyExp, IsRV32] in {
++def XAESKSLD : AESKS_Load  <0b10010, "xaesksld">;
++def XAESKSE  : AESKS_Expand<0b10000, "xaeskse">;
++def XAESKSRD : AESKS_Read  <0b10100, "xaesksrd">;
++} // Predicates = [HasVendorXAesKeyExp, IsRV32]
++
++//===----------------------------------------------------------------------===//
++// Codegen patterns
++//===----------------------------------------------------------------------===//
++
++let Predicates = [HasVendorXAesKeyExp, IsRV32] in {
++def : Pat<(int_riscv_xaesksld (XLenVT GPR:$rs1), byteselect:$widx),
++          (XAESKSLD GPR:$rs1, byteselect:$widx)>;
++def : Pat<(int_riscv_xaeskse), (XAESKSE)>;
++def : Pat<(XLenVT (int_riscv_xaesksrd byteselect:$widx)),
++          (XAESKSRD byteselect:$widx)>;
++} // Predicates = [HasVendorXAesKeyExp, IsRV32]

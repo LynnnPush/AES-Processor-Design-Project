@@ -102,6 +102,29 @@ module cv32e40p_alu
       .result_o(aes_fi_result)
   );
 
+  // AES-128 key-schedule accelerator (XAesKeyExp): holds the live 128-bit
+  // round key. State updates are commit-gated with (enable_i & ex_ready_i) so a
+  // stall cannot apply a load/expand twice; the AES key sequence is branchless
+  // (fully unrolled) so no mid-sequence flush can occur.
+  logic [31:0] aes_ks_rdata;
+  logic        aes_ks_commit;
+  logic        aes_ks_ld_en;
+  logic        aes_ks_exp_en;
+
+  assign aes_ks_commit = enable_i & ex_ready_i;
+  assign aes_ks_ld_en  = aes_ks_commit & (operator_i == ALU_XAESKSLD);
+  assign aes_ks_exp_en = aes_ks_commit & (operator_i == ALU_XAESKSE);
+
+  cv32e40p_aes_ks aes_ks_i (
+      .clk     (clk),
+      .rst_n   (rst_n),
+      .ld_en_i (aes_ks_ld_en),
+      .exp_en_i(aes_ks_exp_en),
+      .widx_i  (imm_vec_ext_i),
+      .wdata_i (operand_a_i),
+      .rdata_o (aes_ks_rdata)
+  );
+
   //////////////////////////////////////////////////////////////////////////////////////////
   //   ____            _   _ _   _                      _      _       _     _            //
   //  |  _ \ __ _ _ __| |_(_) |_(_) ___  _ __   ___  __| |    / \   __| | __| | ___ _ __  //
@@ -999,6 +1022,9 @@ module cv32e40p_alu
       // Scalar crypto (Zkne)
       ALU_AES32ESMI: result_o = aes_result;
       ALU_AES32ESI:  result_o = aes_fi_result;
+
+      // AES-128 key-schedule read (XAesKeyExp); load/expand do not write rd.
+      ALU_XAESKSRD:  result_o = aes_ks_rdata;
 
       default: ;  // default case to suppress unique warning
     endcase

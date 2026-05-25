@@ -781,8 +781,12 @@ module cv32e40p_id_stage
   // Reuse imm_vec_ext channel to forward the 2-bit byte-select (bs) of
   // aes32esmi / aes32esi to the ALU. instr[31:30] holds bs for both Zkne
   // encodings (they share funct3/opcode and differ only in funct5).
+  // The same channel carries the 2-bit word index (widx, also instr[31:30])
+  // for the custom key-schedule load/read instructions.
   assign imm_vec_ext_id = ((alu_operator == ALU_AES32ESMI) ||
-                           (alu_operator == ALU_AES32ESI)) ? instr[31:30]
+                           (alu_operator == ALU_AES32ESI)  ||
+                           (alu_operator == ALU_XAESKSLD)  ||
+                           (alu_operator == ALU_XAESKSRD)) ? instr[31:30]
                                                            : imm_vu_type[1:0];
 
 

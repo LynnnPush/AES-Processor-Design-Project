@@ -1,0 +1,18 @@
+--- a/llvm/lib/Target/RISCV/RISCVFeatures.td
++++ b/llvm/lib/Target/RISCV/RISCVFeatures.td
+@@ -1315,6 +1315,15 @@
+       AssemblerPredicate<(all_of FeatureVendorXAes32esi),
+                          "'XAes32esi' (custom aes32esi)">;
+ 
++// PDP project-10 custom extension - AES-128 key schedule (on-the-fly round-key
++// generation via an internal 128-bit key register: load / expand / read).
++def FeatureVendorXAesKeyExp
++    : RISCVExtension<1, 0, "Custom AES-128 key schedule (PDP project-10)">;
++def HasVendorXAesKeyExp
++    : Predicate<"Subtarget->hasVendorXAesKeyExp()">,
++      AssemblerPredicate<(all_of FeatureVendorXAesKeyExp),
++                         "'XAesKeyExp' (custom AES key schedule)">;
++
+ // MIPS Extensions
+ 
+ def FeatureVendorXMIPSCMov

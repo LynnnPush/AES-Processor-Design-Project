@@ -23,6 +23,11 @@ static const uint8_t sbox[256] = {
     0x8c, 0xa1, 0x89, 0x0d, 0xbf, 0xe6, 0x42, 0x68, 0x41, 0x99, 0x2d, 0x0f, 0xb0, 0x54, 0xbb, 0x16
 };
 
+// Reference (software) key schedule. Superseded by the on-the-fly XAesKeyExp
+// hardware expansion in aes128_encrypt_block(); kept behind REFERENCE_KEYEXP so
+// the round keys it produces can be diffed against the key register during
+// bring-up. Build with -DREFERENCE_KEYEXP to compile it back in.
+#ifdef REFERENCE_KEYEXP
 // Round constants for key expansion
 static const uint8_t rcon[10] = {
     0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1b, 0x36
@@ -54,6 +59,7 @@ void expand_key(uint8_t *key, uint8_t *round_keys) {
         round_keys[i + 3] = round_keys[i - 13] ^ temp[3];
     }
 }
+#endif // REFERENCE_KEYEXP
 
 // SubBytes transformation
 void sub_bytes(uint8_t *state) {
@@ -184,27 +190,49 @@ void aes_final_round(uint8_t *state, uint8_t *rk) {
     w[0] = c0; w[1] = c1; w[2] = c2; w[3] = c3;
 }
 
-// Single block AES-128 encryption
-void aes128_encrypt_block(uint8_t *plaintext, uint8_t *round_keys, uint8_t *ciphertext) {
+// Read the live 128-bit round key out of the key register into 4 words.
+static inline void load_rk(uint8_t *rk) {
+    uint32_t *w = (uint32_t *)rk;
+    w[0] = aesksrd(0);
+    w[1] = aesksrd(1);
+    w[2] = aesksrd(2);
+    w[3] = aesksrd(3);
+}
+
+// Single block AES-128 encryption with on-the-fly key expansion.
+// Round keys are generated between rounds in the hidden 128-bit key register
+// (XAesKeyExp) instead of being precomputed into memory.
+void aes128_encrypt_block(uint8_t *plaintext, uint8_t *key, uint8_t *ciphertext) {
     uint8_t state[16];
+    uint8_t rk[16];
     memcpy(state, plaintext, 16);
 
-    // Initial round
-    add_round_key(state, round_keys);
+    // Seed the key register with the cipher key (the round-0 key). A load also
+    // resets the internal round counter, so the first aeskse() uses Rcon[1].
+    uint32_t *kin = (uint32_t *)key;
+    aesksld(kin[0], 0);
+    aesksld(kin[1], 1);
+    aesksld(kin[2], 2);
+    aesksld(kin[3], 3);
 
-    // Main rounds (1 to 9) - fused via aes32esmi:
-    //   SubBytes + ShiftRows + MixColumns + AddRoundKey  ->  one chained step
-    // Fully unrolled by the LLVM loop-unrolling pass: the trip count is a
-    // compile-time constant (9), so unroll(full) flattens the loop and
-    // removes the round-counter increment and back-edge branch entirely.
+    // Initial round: AddRoundKey with the cipher key.
+    load_rk(rk);
+    add_round_key(state, rk);
+
+    // Main rounds (1 to 9): aeskse() generates the next round key in one cycle
+    // between rounds, then the fused aes32esmi inner round consumes it. Fully
+    // unrolled (trip count is the compile-time constant 9).
     #pragma clang loop unroll(full)
     for (int round = 1; round < 10; round++) {
-        aes_inner_round(state, &round_keys[round * 16]);
+        aeskse();
+        load_rk(rk);
+        aes_inner_round(state, rk);
     }
 
-    // Final round (10) - fused via aes32esi:
-    //   SubBytes + ShiftRows + AddRoundKey  ->  one chained step (no MixCol)
-    aes_final_round(state, &round_keys[10 * 16]);
+    // Final round (10) - fused via aes32esi (no MixColumns).
+    aeskse();
+    load_rk(rk);
+    aes_final_round(state, rk);
 
     memcpy(ciphertext, state, 16);
 }
@@ -216,11 +244,10 @@ void aes128_ecb_encrypt(uint8_t *plaintext, size_t len, uint8_t *key, uint8_t *c
         return;
     }
 
-    uint8_t round_keys[176];
-    expand_key(key, round_keys);
-
+    // On-the-fly key expansion: each block re-seeds the key register and
+    // regenerates the schedule between rounds (no precomputed round_keys[]).
     for (size_t i = 0; i < len; i += 16) {
-        aes128_encrypt_block(&plaintext[i], round_keys, &ciphertext[i]);
+        aes128_encrypt_block(&plaintext[i], key, &ciphertext[i]);
     }
 }
 
