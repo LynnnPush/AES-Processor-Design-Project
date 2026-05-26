@@ -1,0 +1,27 @@
+--- a/llvm/include/llvm/IR/IntrinsicsRISCV.td
++++ b/llvm/include/llvm/IR/IntrinsicsRISCV.td
+@@ -1783,6 +1783,24 @@
+ def int_riscv_xaes32esi  : ScalarCryptoByteSelect32,
+                            ClangBuiltin<"__builtin_riscv_xaes32esi">;
+ 
++// PDP project-10 custom XAesKeyExp extension (AES-128 key schedule).
++// These operate on a hidden 128-bit key register inside the core, so they
++// must NOT be modeled as pure: IntrInaccessibleMemOnly creates a memory
++// dependency that keeps load/expand/read ordered relative to one another, and
++// IntrHasSideEffects stops the void-returning load/expand from being deleted
++// as dead. The immediate word index is an ImmArg.
++def int_riscv_xaesksld : Intrinsic<[], [llvm_i32_ty, llvm_i32_ty],
++                                   [IntrInaccessibleMemOnly, IntrHasSideEffects,
++                                    ImmArg<ArgIndex<1>>]>,
++                         ClangBuiltin<"__builtin_riscv_xaesksld">;
++def int_riscv_xaeskse  : Intrinsic<[], [],
++                                   [IntrInaccessibleMemOnly, IntrHasSideEffects]>,
++                         ClangBuiltin<"__builtin_riscv_xaeskse">;
++def int_riscv_xaesksrd : Intrinsic<[llvm_i32_ty], [llvm_i32_ty],
++                                   [IntrInaccessibleMemOnly, IntrHasSideEffects,
++                                    ImmArg<ArgIndex<0>>]>,
++                         ClangBuiltin<"__builtin_riscv_xaesksrd">;
++
+ def int_riscv_aes64es   : ScalarCryptoGprGprIntrinsic64,
+                           ClangBuiltin<"__builtin_riscv_aes64es">;
+ def int_riscv_aes64esm  : ScalarCryptoGprGprIntrinsic64,

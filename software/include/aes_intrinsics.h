@@ -44,4 +44,40 @@ static inline uint32_t aes32esi(uint32_t rs1, uint32_t rs2, int bs) {
     }
 }
 
+/*
+ * XAesKeyExp: AES-128 key schedule on a hidden 128-bit key register.
+ *
+ *   aesksld(w, widx) : key_reg[widx] = w     (seed a cipher-key word)
+ *   aeskse()         : key_reg = KeyExpand(key_reg) (advance one round key)
+ *   aesksrd(widx)    : returns key_reg[widx] (read a round-key word)
+ *
+ * A seed load resets the internal round counter; each aeskse() consumes the
+ * next Rcon and advances, so round keys must be generated strictly in order
+ * (round 1..10). `widx` must be a compile-time constant in {0,1,2,3}; the
+ * switch dispatches a runtime widx to a literal call to satisfy the builtin's
+ * constant-argument check, and collapses to one call for a constant widx.
+ * Requires -march=...xaeskeyexp (set in config/rv32-standard.conf).
+ */
+static inline void aesksld(uint32_t w, int widx) {
+    switch (widx & 0x3) {
+    case 0:  __builtin_riscv_xaesksld(w, 0); break;
+    case 1:  __builtin_riscv_xaesksld(w, 1); break;
+    case 2:  __builtin_riscv_xaesksld(w, 2); break;
+    default: __builtin_riscv_xaesksld(w, 3); break;
+    }
+}
+
+static inline void aeskse(void) {
+    __builtin_riscv_xaeskse();
+}
+
+static inline uint32_t aesksrd(int widx) {
+    switch (widx & 0x3) {
+    case 0:  return __builtin_riscv_xaesksrd(0);
+    case 1:  return __builtin_riscv_xaesksrd(1);
+    case 2:  return __builtin_riscv_xaesksrd(2);
+    default: return __builtin_riscv_xaesksrd(3);
+    }
+}
+
 #endif

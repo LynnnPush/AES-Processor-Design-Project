@@ -628,6 +628,34 @@ module cv32e40p_decoder import cv32e40p_pkg::*; import cv32e40p_apu_core_pkg::*;
           regfile_alu_we      = 1'b1;
         end
 
+        // PDP project-10 custom AES-128 key-schedule (XAesKeyExp).
+        // All three share funct3=000, OPC_OP and a unique funct5 in
+        // instr[29:25]; decoded here (before the prefix-{10,11} branches) so
+        // the widx bits in instr[31:30] cannot alias PULP decoding.
+
+        // xaesksld rs1, widx : krk[widx] <= rs1.  funct5 = 0b10010, widx in [31:30].
+        else if (instr_rdata_i[14:12] == 3'b000 && instr_rdata_i[29:25] == 5'b10010) begin
+          alu_en              = 1'b1;
+          alu_operator_o      = ALU_XAESKSLD;
+          alu_op_a_mux_sel_o  = OP_A_REGA_OR_FWD;
+          rega_used_o         = 1'b1;
+          regfile_alu_we      = 1'b0;  // writes the internal key register, not rd
+        end
+
+        // xaeskse : krk <= KeyExpand(krk).  funct5 = 0b10000, no register operands.
+        else if (instr_rdata_i[14:12] == 3'b000 && instr_rdata_i[29:25] == 5'b10000) begin
+          alu_en              = 1'b1;
+          alu_operator_o      = ALU_XAESKSE;
+          regfile_alu_we      = 1'b0;  // updates the internal key register only
+        end
+
+        // xaesksrd rd, widx : rd <= krk[widx].  funct5 = 0b10100, widx in [31:30].
+        else if (instr_rdata_i[14:12] == 3'b000 && instr_rdata_i[29:25] == 5'b10100) begin
+          alu_en              = 1'b1;
+          alu_operator_o      = ALU_XAESKSRD;
+          regfile_alu_we      = 1'b1;  // reads the internal key register into rd
+        end
+
         // PREFIX 11
         else if (instr_rdata_i[31:30] == 2'b11) begin
           if (PULP_XPULP) begin

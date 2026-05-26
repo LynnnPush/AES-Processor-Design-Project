@@ -23,6 +23,11 @@ static const uint8_t sbox[256] = {
     0x8c, 0xa1, 0x89, 0x0d, 0xbf, 0xe6, 0x42, 0x68, 0x41, 0x99, 0x2d, 0x0f, 0xb0, 0x54, 0xbb, 0x16
 };
 
+// Reference (software) key schedule. Superseded by the on-the-fly XAesKeyExp
+// hardware expansion in aes128_encrypt_block(); kept behind REFERENCE_KEYEXP so
+// the round keys it produces can be diffed against the key register during
+// bring-up. Build with -DREFERENCE_KEYEXP to compile it back in.
+#ifdef REFERENCE_KEYEXP
 // Round constants for key expansion
 static const uint8_t rcon[10] = {
     0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1b, 0x36
@@ -54,6 +59,7 @@ void expand_key(uint8_t *key, uint8_t *round_keys) {
         round_keys[i + 3] = round_keys[i - 13] ^ temp[3];
     }
 }
+#endif // REFERENCE_KEYEXP
 
 // SubBytes transformation
 void sub_bytes(uint8_t *state) {
@@ -107,39 +113,41 @@ void add_round_key(uint8_t *state, uint8_t *round_key) {
 }
 
 // Fused SubBytes + ShiftRows + MixColumns + AddRoundKey via aes32esmi.
-// For each output column c, acc is seeded with round_key[c] and four chained
-// aes32esmi calls XOR in the row-0..row-3 contributions taken from input
-// columns (c+0..c+3) mod 4 - the (c+r) mod 4 index pattern is exactly the
-// ShiftRows permutation.
-void aes_inner_round(uint8_t *state, uint8_t *rk) {
+// For each output column c, acc is seeded with the round-key word k{c} and
+// four chained aes32esmi calls XOR in the row-0..row-3 contributions taken
+// from input columns (c+0..c+3) mod 4 - the (c+r) mod 4 index pattern is
+// exactly the ShiftRows permutation. Round-key words come in as scalar
+// arguments so the caller can feed them straight from `aesksrd` without
+// staging through a stack buffer.
+void aes_inner_round(uint8_t *state,
+                     uint32_t k0, uint32_t k1, uint32_t k2, uint32_t k3) {
     uint32_t *w  = (uint32_t *)state;
-    uint32_t *kw = (uint32_t *)rk;
     uint32_t in0 = w[0], in1 = w[1], in2 = w[2], in3 = w[3];
     uint32_t c0, c1, c2, c3;
 
     // Column 0: rows from input columns 0,1,2,3
-    c0 = kw[0];
+    c0 = k0;
     c0 = aes32esmi(c0, in0, 0);
     c0 = aes32esmi(c0, in1, 1);
     c0 = aes32esmi(c0, in2, 2);
     c0 = aes32esmi(c0, in3, 3);
 
     // Column 1: rows from input columns 1,2,3,0
-    c1 = kw[1];
+    c1 = k1;
     c1 = aes32esmi(c1, in1, 0);
     c1 = aes32esmi(c1, in2, 1);
     c1 = aes32esmi(c1, in3, 2);
     c1 = aes32esmi(c1, in0, 3);
 
     // Column 2: rows from input columns 2,3,0,1
-    c2 = kw[2];
+    c2 = k2;
     c2 = aes32esmi(c2, in2, 0);
     c2 = aes32esmi(c2, in3, 1);
     c2 = aes32esmi(c2, in0, 2);
     c2 = aes32esmi(c2, in1, 3);
 
     // Column 3: rows from input columns 3,0,1,2
-    c3 = kw[3];
+    c3 = k3;
     c3 = aes32esmi(c3, in3, 0);
     c3 = aes32esmi(c3, in0, 1);
     c3 = aes32esmi(c3, in1, 2);
@@ -151,31 +159,31 @@ void aes_inner_round(uint8_t *state, uint8_t *rk) {
 // Fused SubBytes + ShiftRows + AddRoundKey via aes32esi (final round, no MixCol).
 // Same (c+r) mod 4 ShiftRows pattern as aes_inner_round; differs only in that
 // aes32esi places the sbox byte directly (no MixColumns mix) at byte position bs.
-void aes_final_round(uint8_t *state, uint8_t *rk) {
+void aes_final_round(uint8_t *state,
+                     uint32_t k0, uint32_t k1, uint32_t k2, uint32_t k3) {
     uint32_t *w  = (uint32_t *)state;
-    uint32_t *kw = (uint32_t *)rk;
     uint32_t in0 = w[0], in1 = w[1], in2 = w[2], in3 = w[3];
     uint32_t c0, c1, c2, c3;
 
-    c0 = kw[0];
+    c0 = k0;
     c0 = aes32esi(c0, in0, 0);
     c0 = aes32esi(c0, in1, 1);
     c0 = aes32esi(c0, in2, 2);
     c0 = aes32esi(c0, in3, 3);
 
-    c1 = kw[1];
+    c1 = k1;
     c1 = aes32esi(c1, in1, 0);
     c1 = aes32esi(c1, in2, 1);
     c1 = aes32esi(c1, in3, 2);
     c1 = aes32esi(c1, in0, 3);
 
-    c2 = kw[2];
+    c2 = k2;
     c2 = aes32esi(c2, in2, 0);
     c2 = aes32esi(c2, in3, 1);
     c2 = aes32esi(c2, in0, 2);
     c2 = aes32esi(c2, in1, 3);
 
-    c3 = kw[3];
+    c3 = k3;
     c3 = aes32esi(c3, in3, 0);
     c3 = aes32esi(c3, in0, 1);
     c3 = aes32esi(c3, in1, 2);
@@ -184,27 +192,52 @@ void aes_final_round(uint8_t *state, uint8_t *rk) {
     w[0] = c0; w[1] = c1; w[2] = c2; w[3] = c3;
 }
 
-// Single block AES-128 encryption
-void aes128_encrypt_block(uint8_t *plaintext, uint8_t *round_keys, uint8_t *ciphertext) {
+// Word-wise AddRoundKey for the initial round. Avoids the per-byte XOR loop
+// of add_round_key() so the key words can come straight from `aesksrd` GPRs.
+static inline void add_round_key_words(uint8_t *state,
+                                       uint32_t k0, uint32_t k1,
+                                       uint32_t k2, uint32_t k3) {
+    uint32_t *w = (uint32_t *)state;
+    w[0] ^= k0;
+    w[1] ^= k1;
+    w[2] ^= k2;
+    w[3] ^= k3;
+}
+
+// Single block AES-128 encryption with on-the-fly key expansion.
+// Round keys are generated between rounds in the hidden 128-bit key register
+// (XAesKeyExp) and read out word-by-word via aesksrd straight into the round
+// helpers' GPR arguments - no stack-resident round-key buffer.
+void aes128_encrypt_block(uint8_t *plaintext, uint8_t *key, uint8_t *ciphertext) {
     uint8_t state[16];
     memcpy(state, plaintext, 16);
 
-    // Initial round
-    add_round_key(state, round_keys);
+    // Seed the key register with the cipher key (the round-0 key). A load also
+    // resets the internal round counter, so the first aeskse() uses Rcon[1].
+    uint32_t *kin = (uint32_t *)key;
+    aesksld(kin[0], 0);
+    aesksld(kin[1], 1);
+    aesksld(kin[2], 2);
+    aesksld(kin[3], 3);
 
-    // Main rounds (1 to 9) - fused via aes32esmi:
-    //   SubBytes + ShiftRows + MixColumns + AddRoundKey  ->  one chained step
-    // Fully unrolled by the LLVM loop-unrolling pass: the trip count is a
-    // compile-time constant (9), so unroll(full) flattens the loop and
-    // removes the round-counter increment and back-edge branch entirely.
+    // Initial round: AddRoundKey with the cipher key.
+    add_round_key_words(state,
+                        aesksrd(0), aesksrd(1), aesksrd(2), aesksrd(3));
+
+    // Main rounds (1 to 9): aeskse() generates the next round key in one cycle
+    // between rounds, then the fused aes32esmi inner round consumes it. Fully
+    // unrolled (trip count is the compile-time constant 9).
     #pragma clang loop unroll(full)
     for (int round = 1; round < 10; round++) {
-        aes_inner_round(state, &round_keys[round * 16]);
+        aeskse();
+        aes_inner_round(state,
+                        aesksrd(0), aesksrd(1), aesksrd(2), aesksrd(3));
     }
 
-    // Final round (10) - fused via aes32esi:
-    //   SubBytes + ShiftRows + AddRoundKey  ->  one chained step (no MixCol)
-    aes_final_round(state, &round_keys[10 * 16]);
+    // Final round (10) - fused via aes32esi (no MixColumns).
+    aeskse();
+    aes_final_round(state,
+                    aesksrd(0), aesksrd(1), aesksrd(2), aesksrd(3));
 
     memcpy(ciphertext, state, 16);
 }
@@ -216,11 +249,10 @@ void aes128_ecb_encrypt(uint8_t *plaintext, size_t len, uint8_t *key, uint8_t *c
         return;
     }
 
-    uint8_t round_keys[176];
-    expand_key(key, round_keys);
-
+    // On-the-fly key expansion: each block re-seeds the key register and
+    // regenerates the schedule between rounds (no precomputed round_keys[]).
     for (size_t i = 0; i < len; i += 16) {
-        aes128_encrypt_block(&plaintext[i], round_keys, &ciphertext[i]);
+        aes128_encrypt_block(&plaintext[i], key, &ciphertext[i]);
     }
 }
 

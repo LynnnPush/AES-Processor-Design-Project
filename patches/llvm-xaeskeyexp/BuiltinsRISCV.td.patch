@@ -1,0 +1,18 @@
+--- a/clang/include/clang/Basic/BuiltinsRISCV.td
++++ b/clang/include/clang/Basic/BuiltinsRISCV.td
+@@ -104,6 +104,15 @@
+ def xaes32esi : RISCVBuiltin<"unsigned int(unsigned int, unsigned int, _Constant unsigned int)">;
+ } // Features = "xaes32esi,32bit"
+ 
++//===----------------------------------------------------------------------===//
++// PDP project-10 custom XAesKeyExp extension (AES-128 key schedule).
++//===----------------------------------------------------------------------===//
++let Features = "xaeskeyexp,32bit" in {
++def xaesksld : RISCVBuiltin<"void(unsigned int, _Constant unsigned int)">;
++def xaeskse  : RISCVBuiltin<"void()">;
++def xaesksrd : RISCVBuiltin<"unsigned int(_Constant unsigned int)">;
++} // Features = "xaeskeyexp,32bit"
++
+ let Features = "zkne,64bit" in {
+ def aes64es : RISCVBuiltin<"uint64_t(uint64_t, uint64_t)">;
+ def aes64esm : RISCVBuiltin<"uint64_t(uint64_t, uint64_t)">;

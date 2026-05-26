@@ -170,7 +170,12 @@ package cv32e40p_pkg;
     ALU_AES32ESMI = 7'b1000000,
     // Scalar crypto (Zkne) - aes32esi (final round, no MixColumns)
     // rd = rs1 ^ rot_left(zext32(sbox(rs2[bs])), bs*8)
-    ALU_AES32ESI  = 7'b1000001
+    ALU_AES32ESI  = 7'b1000001,
+
+    // PDP project-10 custom AES-128 key-schedule (XAesKeyExp)
+    ALU_XAESKSLD  = 7'b1000010,  // krk[widx] <= rs1 (seed key word)
+    ALU_XAESKSE   = 7'b1000011,  // krk       <= KeyExpand(krk) (next round key)
+    ALU_XAESKSRD  = 7'b1000100   // rd        <= krk[widx] (read key word)
 
   } alu_opcode_e;
 

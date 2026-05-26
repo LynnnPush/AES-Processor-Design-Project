@@ -53,6 +53,15 @@ FUNC_CYCLES_PNG = os.path.join(_SIM_DIR, 'function_cycles.png')
 PC_OFFSET = 0x8000
 TOP_N = 20
 
+# AES-related custom mnemonics. aes32esmi/aes32esi are the pure round/sub
+# helpers from xaes32esmi/xaes32esi; xaesksld/xaeskse/xaesksrd drive the
+# on-the-fly key schedule from xaeskeyexp. All five count as "useful AES"
+# for the CPI stack and per-function attribution.
+AES_MNEMS = frozenset((
+    'aes32esmi', 'aes32esi',
+    'xaesksld', 'xaeskse', 'xaesksrd',
+))
+
 
 # --------------------------------------------------------------------------- #
 # CPI-stack classification
@@ -221,8 +230,16 @@ def decode_rv32(instr):
     f3 = (instr >> 12) & 0x7
     f7 = (instr >> 25) & 0x7f
     if op == 0x33:
-        if f3 == 0b000 and (f7 & 0x1f) == 0b10011: return 'aes32esmi'
-        if f3 == 0b000 and (f7 & 0x1f) == 0b10001: return 'aes32esi'
+        if f3 == 0b000:
+            # Shared OPC_OP/funct3=0 family with funct5 in Inst[29:25].
+            # aes32esmi/aes32esi carry bs in Inst[31:30]; xaes keyexp ops
+            # carry widx in those bits — both decode-irrelevant here.
+            funct5 = f7 & 0x1f
+            if funct5 == 0b10011: return 'aes32esmi'
+            if funct5 == 0b10001: return 'aes32esi'
+            if funct5 == 0b10010: return 'xaesksld'
+            if funct5 == 0b10000: return 'xaeskse'
+            if funct5 == 0b10100: return 'xaesksrd'
         if f7 == 0x01: return M_FUNCT3.get(f3, 'mext')
         if f3 == 0b000: return 'sub' if f7 == 0x20 else 'add'
         if f3 == 0b101: return 'sra' if f7 == 0x20 else 'srl'
@@ -354,8 +371,7 @@ def main():
 
             cat = classify(row)
             if cat == 'useful_execution':
-                cat = ('useful_aes' if mnem in ('aes32esmi', 'aes32esi')
-                       else 'useful_other')
+                cat = 'useful_aes' if mnem in AES_MNEMS else 'useful_other'
             counts[cat] += 1
             total_cycles += 1
             raw['mnemonic'] = mnem
@@ -373,7 +389,7 @@ def main():
             if row['is_decoding'] and row['id_ready'] and instr is not None:
                 func_insn_count[func] += 1
                 opcode_count[mnem] += 1
-                if mnem in ('aes32esmi', 'aes32esi'):
+                if mnem in AES_MNEMS:
                     func_mnem_count[func][mnem] += 1
                 total_retired += 1
 
@@ -390,7 +406,7 @@ def main():
     written = [CLASSIFIED_CSV, OPCODES_CSV, ATTRIBUTION_CSV]
     if _HAVE_MPL:
         _plot_cpi_stack(counts, total_cycles)
-        _plot_function_cycles(ordered, total_cycles)
+        _plot_function_cycles(ordered, func_mnem_count, total_cycles)
         written += [CPI_STACK_PNG, FUNC_CYCLES_PNG]
 
     print('\nWrote:')
@@ -454,23 +470,25 @@ def _write_opcodes_csv(opcode_count, total_retired):
 def _write_attribution_csv(ordered, func_insn_count, func_mnem_count,
                            func_cycle_counts, total_retired):
     cats = sorted({c for cc in func_cycle_counts.values() for c in cc})
+    # Stable, deterministic mnemonic column order so the CSV header stays
+    # the same regardless of which AES insns happen to appear in a run.
+    aes_mnem_cols = ['aes32esmi', 'aes32esi',
+                     'xaesksld', 'xaeskse', 'xaesksrd']
     with open(ATTRIBUTION_CSV, 'w', newline='') as f:
         w = csv.writer(f)
-        w.writerow(['function', 'insns', 'insns_pct',
-                    'aes32esmi_insns', 'aes32esi_insns',
-                    'cycles', 'cpi'] + cats)
+        w.writerow(['function', 'insns', 'insns_pct']
+                   + [f'{m}_insns' for m in aes_mnem_cols]
+                   + ['cycles', 'cpi'] + cats)
         for func, cc in ordered:
             cyc = sum(cc.values())
             u = cc.get('useful_aes', 0) + cc.get('useful_other', 0)
             insns = func_insn_count.get(func, 0)
             mc = func_mnem_count.get(func, {})
-            aes_esmi = mc.get('aes32esmi', 0)
-            aes_esi  = mc.get('aes32esi', 0)
             cpi = f'{cyc / u:.4f}' if u else ''
             w.writerow([func, insns,
-                        f'{insns / total_retired * 100:.4f}',
-                        aes_esmi, aes_esi,
-                        cyc, cpi]
+                        f'{insns / total_retired * 100:.4f}']
+                       + [mc.get(m, 0) for m in aes_mnem_cols]
+                       + [cyc, cpi]
                        + [cc.get(c, 0) for c in cats])
 
 
@@ -491,7 +509,7 @@ def _plot_cpi_stack(counts, total_cycles):
     plt.close(fig)
 
 
-def _plot_function_cycles(ordered, total_cycles):
+def _plot_function_cycles(ordered, func_mnem_count, total_cycles):
     keep = TOP_N - 1
     top = ordered[:keep]
     rest = ordered[keep:]
@@ -499,12 +517,29 @@ def _plot_function_cycles(ordered, total_cycles):
     sizes = [sum(cc.values()) for _, cc in top]
     aes_sizes = [cc.get('useful_aes', 0) for _, cc in top]
 
+    # Split useful_aes cycles into round-AES (aes32esmi/aes32esi) vs
+    # key-expansion (xaesksld/xaeskse/xaesksrd). One retire == one useful
+    # cycle for these single-cycle insns, so per-mnemonic retire counts
+    # approximate per-mnemonic useful cycles to within rounding.
+    KEYEXP_MNEMS = ('xaesksld', 'xaeskse', 'xaesksrd')
+
+    def _keyexp(func):
+        mc = func_mnem_count.get(func, {})
+        return sum(mc.get(m, 0) for m in KEYEXP_MNEMS)
+
+    keyexp_sizes = [_keyexp(f) for f, _ in top]
+    round_sizes = [max(a - k, 0) for a, k in zip(aes_sizes, keyexp_sizes)]
+
     rest_total = sum(sum(cc.values()) for _, cc in rest)
     rest_aes = sum(cc.get('useful_aes', 0) for _, cc in rest)
+    rest_keyexp = sum(_keyexp(f) for f, _ in rest)
+    rest_round = max(rest_aes - rest_keyexp, 0)
     if rest_total > 0:
         labels.append(f'other ({len(rest)} funcs)')
         sizes.append(rest_total)
         aes_sizes.append(rest_aes)
+        keyexp_sizes.append(rest_keyexp)
+        round_sizes.append(rest_round)
 
     non_aes_sizes = [s - a for s, a in zip(sizes, aes_sizes)]
 
@@ -518,47 +553,64 @@ def _plot_function_cycles(ordered, total_cycles):
         sizes, radius=1.0, startangle=90,
         wedgeprops={'width': 0.3, 'edgecolor': 'white'})
 
-    # Inner ring: each outer slice split into [AES useful, non-AES] cycles.
-    # Pick a colour that isn't already used by the tab10 outer-ring palette.
-    # tab10's C3 is #d62728 (assigned to memcpy here), so use a strong magenta
-    # instead to keep the AES sub-wedge visually distinct.
-    aes_color = '#e7298a'
-    non_aes_color = '#cccccc'
+    # Inner ring: each outer slice split into
+    # [round-AES, keyexp-AES, non-AES] cycles. Colours are picked to avoid
+    # tab10's C3 (#d62728, assigned to memcpy in this trace) and to keep
+    # round-AES vs keyexp-AES visually distinct.
+    aes_round_color  = '#e7298a'   # strong magenta — round AES
+    aes_keyexp_color = '#7570b3'   # muted violet  — key expansion
+    non_aes_color    = '#cccccc'
     inner_sizes = []
     inner_colors = []
-    for a, na in zip(aes_sizes, non_aes_sizes):
-        inner_sizes.extend([a, na])
-        inner_colors.extend([aes_color, non_aes_color])
+    for r, k, na in zip(round_sizes, keyexp_sizes, non_aes_sizes):
+        inner_sizes.extend([r, k, na])
+        inner_colors.extend([aes_round_color, aes_keyexp_color,
+                             non_aes_color])
     ax.pie(inner_sizes, radius=0.7, startangle=90,
            colors=inner_colors,
            wedgeprops={'width': 0.25, 'edgecolor': 'white'})
 
-    def _fmt(label, total, aes):
+    def _fmt(label, total, aes, rnd, kex):
         if not total:
             return f'{label} — 0'
         pct = total / total_cycles * 100
         base = f'{label} — {total} ({pct:.1f}%)'
         if aes:
-            return f'{base} · AES {aes} ({aes / total * 100:.1f}%)'
+            return (f'{base} · AES {aes} ({aes / total * 100:.1f}%) '
+                    f'[round {rnd} · keyexp {kex}]')
         return base
 
-    legend_labels = [_fmt(l, s, a)
-                     for l, s, a in zip(labels, sizes, aes_sizes)]
+    legend_labels = [_fmt(l, s, a, r, k)
+                     for l, s, a, r, k in zip(labels, sizes, aes_sizes,
+                                              round_sizes, keyexp_sizes)]
     outer_legend = ax.legend(
         outer_wedges, legend_labels,
         loc='center left', bbox_to_anchor=(1.02, 0.5),
         fontsize=9, frameon=False, title='function (outer ring)')
     ax.add_artist(outer_legend)
 
+    total_round = sum(round_sizes)
+    total_keyexp = sum(keyexp_sizes)
+    total_aes = total_round + total_keyexp
     from matplotlib.patches import Patch
     inner_handles = [
-        Patch(facecolor=aes_color, label='aes32esmi/esi (useful)'),
-        Patch(facecolor=non_aes_color, label='non-AES cycles'),
+        Patch(facecolor=aes_round_color,
+              label=f'aes32esmi/esi (round) — {total_round}'),
+        Patch(facecolor=aes_keyexp_color,
+              label=(f'xaesksld/xaeskse/xaesksrd (key expansion) '
+                     f'— {total_keyexp}')),
+        Patch(facecolor=non_aes_color,
+              label=f'non-AES cycles — {sum(non_aes_sizes)}'),
     ]
+    inner_title = 'inner ring'
+    if total_aes:
+        inner_title = (f'inner ring — AES split: round '
+                       f'{total_round / total_aes * 100:.1f}% · keyexp '
+                       f'{total_keyexp / total_aes * 100:.1f}%')
     inner_legend = ax.legend(
         handles=inner_handles,
         loc='lower left', bbox_to_anchor=(1.02, -0.02),
-        fontsize=9, frameon=False, title='inner ring')
+        fontsize=9, frameon=False, title=inner_title)
 
     ax.set_title('Cycle attribution by function '
                  '(inner ring: AES vs non-AES)')
