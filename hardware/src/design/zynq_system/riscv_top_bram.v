@@ -134,7 +134,7 @@ module riscv_top_bram #(
 
 
     core_2_bram #(
-        .R_LATENCY_IN_CYCLES(2)
+        .R_LATENCY_IN_CYCLES(1)
     )instr_bram_if(
         .clk_i(clk),
         .rst_ni(rstn),
@@ -155,7 +155,7 @@ module riscv_top_bram #(
     assign instr_wen = 4'b0000; //never write to instr bram
 
     core_2_bram #(
-        .R_LATENCY_IN_CYCLES(2)
+        .R_LATENCY_IN_CYCLES(1)
     )data_bram_if(
         .clk_i(clk),
         .rst_ni(rstn),

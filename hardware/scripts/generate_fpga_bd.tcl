@@ -837,7 +837,7 @@ proc create_root_design { parentCell } {
     CONFIG.Port_B_Enable_Rate {100} \
     CONFIG.Port_B_Write_Rate {50} \
     CONFIG.Register_PortA_Output_of_Memory_Primitives {false} \
-    CONFIG.Register_PortA_Output_of_Memory_Core {true} \
+    CONFIG.Register_PortA_Output_of_Memory_Core {false} \
     CONFIG.Register_PortB_Output_of_Memory_Primitives {false} \
     CONFIG.Use_Byte_Write_Enable {true} \
     CONFIG.Use_RSTA_Pin {false} \
@@ -955,7 +955,7 @@ proc create_root_design { parentCell } {
     CONFIG.Port_B_Enable_Rate {100} \
     CONFIG.Port_B_Write_Rate {50} \
     CONFIG.Register_PortA_Output_of_Memory_Primitives {false} \
-    CONFIG.Register_PortA_Output_of_Memory_Core {true} \
+    CONFIG.Register_PortA_Output_of_Memory_Core {false} \
     CONFIG.Register_PortB_Output_of_Memory_Primitives {false} \
     CONFIG.Use_Byte_Write_Enable {true} \
     CONFIG.Use_RSTA_Pin {false} \
