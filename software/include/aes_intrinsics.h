@@ -80,4 +80,52 @@ static inline uint32_t aesksrd(int widx) {
     }
 }
 
+/*
+ * XAesState: round-wise AES-128 encryption on a hidden 128-bit state register.
+ *
+ *   aesstld(w, sidx) : st[sidx]  = w                 (load one state word)
+ *   aesrnd(mode)     : st        = round(st, krk)    (one full AES round)
+ *                      mode = 0  middle (SubBytes + ShiftRows + MixCol + ARK)
+ *                      mode = 1  final  (SubBytes + ShiftRows + ARK; no MixCol)
+ *                      mode = 2  ARK-only (round 0 AddRoundKey)
+ *   aesstrd(sidx)    : returns st[sidx]              (read one state word out)
+ *
+ * AddRoundKey reads the live round key directly from the adjacent XAesKeyExp
+ * register, so middle/final rounds need NO GPR operands. Software ordering
+ * contract: aeskse() must precede aesrnd(0) / aesrnd(1) so the next round
+ * key is in place before the round consumes it (the unrolled loop in
+ * aes128_encrypt_block guarantees this).
+ *
+ * `sidx` / `mode` must be compile-time constants in {0..3}; the switch
+ * dispatches a runtime value to a literal call so the builtin's constant-
+ * argument check is satisfied and collapses to one call for a constant arg.
+ * Requires -march=...xaesstate (set in config/rv32-standard.conf).
+ */
+static inline void aesstld(uint32_t w, int sidx) {
+    switch (sidx & 0x3) {
+    case 0:  __builtin_riscv_xaesstld(w, 0); break;
+    case 1:  __builtin_riscv_xaesstld(w, 1); break;
+    case 2:  __builtin_riscv_xaesstld(w, 2); break;
+    default: __builtin_riscv_xaesstld(w, 3); break;
+    }
+}
+
+static inline void aesrnd(int mode) {
+    switch (mode & 0x3) {
+    case 0:  __builtin_riscv_xaesrnd(0); break;  // middle round
+    case 1:  __builtin_riscv_xaesrnd(1); break;  // final round (no MixColumns)
+    case 2:  __builtin_riscv_xaesrnd(2); break;  // AddRoundKey-only (round 0)
+    default: __builtin_riscv_xaesrnd(0); break;
+    }
+}
+
+static inline uint32_t aesstrd(int sidx) {
+    switch (sidx & 0x3) {
+    case 0:  return __builtin_riscv_xaesstrd(0);
+    case 1:  return __builtin_riscv_xaesstrd(1);
+    case 2:  return __builtin_riscv_xaesstrd(2);
+    default: return __builtin_riscv_xaesstrd(3);
+    }
+}
+
 #endif

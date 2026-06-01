@@ -106,23 +106,51 @@ module cv32e40p_alu
   // round key. State updates are commit-gated with (enable_i & ex_ready_i) so a
   // stall cannot apply a load/expand twice; the AES key sequence is branchless
   // (fully unrolled) so no mid-sequence flush can occur.
-  logic [31:0] aes_ks_rdata;
-  logic        aes_ks_commit;
-  logic        aes_ks_ld_en;
-  logic        aes_ks_exp_en;
+  logic [31:0]  aes_ks_rdata;
+  logic [127:0] aes_ks_krk_full;     // live round key, fed into the state unit
+  logic         aes_ks_commit;
+  logic         aes_ks_ld_en;
+  logic         aes_ks_exp_en;
 
   assign aes_ks_commit = enable_i & ex_ready_i;
   assign aes_ks_ld_en  = aes_ks_commit & (operator_i == ALU_XAESKSLD);
   assign aes_ks_exp_en = aes_ks_commit & (operator_i == ALU_XAESKSE);
 
   cv32e40p_aes_ks aes_ks_i (
+      .clk       (clk),
+      .rst_n     (rst_n),
+      .ld_en_i   (aes_ks_ld_en),
+      .exp_en_i  (aes_ks_exp_en),
+      .widx_i    (imm_vec_ext_i),
+      .wdata_i   (operand_a_i),
+      .rdata_o   (aes_ks_rdata),
+      .krk_full_o(aes_ks_krk_full)
+  );
+
+  // AES-128 round-wise state accelerator (XAesState): holds the live 128-bit
+  // cipher state and advances it by one full round per cycle. Same commit
+  // gating as aes_ks (enable_i & ex_ready_i guarantees the load/round fires
+  // exactly once even under EX stalls). The mode field for xaesrnd and the
+  // sidx field for xaesstld/xaesstrd both ride on imm_vec_ext_i (instr[31:30]).
+  logic [31:0] aes_st_rdata;
+  logic        aes_st_commit;
+  logic        aes_st_ld_en;
+  logic        aes_st_rnd_en;
+
+  assign aes_st_commit = enable_i & ex_ready_i;
+  assign aes_st_ld_en  = aes_st_commit & (operator_i == ALU_XAESSTLD);
+  assign aes_st_rnd_en = aes_st_commit & (operator_i == ALU_XAESRND);
+
+  cv32e40p_aes_state aes_state_i (
       .clk     (clk),
       .rst_n   (rst_n),
-      .ld_en_i (aes_ks_ld_en),
-      .exp_en_i(aes_ks_exp_en),
-      .widx_i  (imm_vec_ext_i),
+      .ld_en_i (aes_st_ld_en),
+      .rnd_en_i(aes_st_rnd_en),
+      .mode_i  (imm_vec_ext_i),         // xaesrnd packs mode into instr[31:30]
+      .sidx_i  (imm_vec_ext_i),         // xaesstld/xaesstrd pack sidx the same way
       .wdata_i (operand_a_i),
-      .rdata_o (aes_ks_rdata)
+      .krk_i   (aes_ks_krk_full),       // AddRoundKey source from the key unit
+      .rdata_o (aes_st_rdata)
   );
 
   //////////////////////////////////////////////////////////////////////////////////////////
@@ -1025,6 +1053,9 @@ module cv32e40p_alu
 
       // AES-128 key-schedule read (XAesKeyExp); load/expand do not write rd.
       ALU_XAESKSRD:  result_o = aes_ks_rdata;
+
+      // AES-128 round-wise state read (XAesState); load/round do not write rd.
+      ALU_XAESSTRD:  result_o = aes_st_rdata;
 
       default: ;  // default case to suppress unique warning
     endcase

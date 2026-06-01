@@ -175,7 +175,15 @@ package cv32e40p_pkg;
     // PDP project-10 custom AES-128 key-schedule (XAesKeyExp)
     ALU_XAESKSLD  = 7'b1000010,  // krk[widx] <= rs1 (seed key word)
     ALU_XAESKSE   = 7'b1000011,  // krk       <= KeyExpand(krk) (next round key)
-    ALU_XAESKSRD  = 7'b1000100   // rd        <= krk[widx] (read key word)
+    ALU_XAESKSRD  = 7'b1000100,  // rd        <= krk[widx] (read key word)
+
+    // PDP project-10 custom AES-128 round-wise state accelerator (XAesState).
+    // Internal control codes; the corresponding instructions (xaesstld /
+    // xaesrnd / xaesstrd) share funct3/OPC_OP and use unique funct5 values
+    // 10101 / 10110 / 10111 (instr[31:30] carries sidx or mode).
+    ALU_XAESSTLD  = 7'b1000101,  // st[sidx] <= rs1 (load state word)
+    ALU_XAESRND   = 7'b1000110,  // st       <= round(st, krk) (one AES round)
+    ALU_XAESSTRD  = 7'b1000111   // rd       <= st[sidx]  (read state word)
 
   } alu_opcode_e;
 

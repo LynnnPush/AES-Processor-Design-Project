@@ -55,11 +55,13 @@ TOP_N = 20
 
 # AES-related custom mnemonics. aes32esmi/aes32esi are the pure round/sub
 # helpers from xaes32esmi/xaes32esi; xaesksld/xaeskse/xaesksrd drive the
-# on-the-fly key schedule from xaeskeyexp. All five count as "useful AES"
-# for the CPI stack and per-function attribution.
+# on-the-fly key schedule from xaeskeyexp; xaesstld/xaesrnd/xaesstrd drive
+# the round-wise state accelerator from xaesstate. All eight count as
+# "useful AES" for the CPI stack and per-function attribution.
 AES_MNEMS = frozenset((
     'aes32esmi', 'aes32esi',
     'xaesksld', 'xaeskse', 'xaesksrd',
+    'xaesstld', 'xaesrnd', 'xaesstrd',
 ))
 
 
@@ -240,6 +242,11 @@ def decode_rv32(instr):
             if funct5 == 0b10010: return 'xaesksld'
             if funct5 == 0b10000: return 'xaeskse'
             if funct5 == 0b10100: return 'xaesksrd'
+            # Round-wise state accelerator (xaesstate): sidx (load/read) or
+            # mode (round) carried in Inst[31:30] - decode-irrelevant here.
+            if funct5 == 0b10101: return 'xaesstld'
+            if funct5 == 0b10110: return 'xaesrnd'
+            if funct5 == 0b10111: return 'xaesstrd'
         if f7 == 0x01: return M_FUNCT3.get(f3, 'mext')
         if f3 == 0b000: return 'sub' if f7 == 0x20 else 'add'
         if f3 == 0b101: return 'sra' if f7 == 0x20 else 'srl'
@@ -473,7 +480,8 @@ def _write_attribution_csv(ordered, func_insn_count, func_mnem_count,
     # Stable, deterministic mnemonic column order so the CSV header stays
     # the same regardless of which AES insns happen to appear in a run.
     aes_mnem_cols = ['aes32esmi', 'aes32esi',
-                     'xaesksld', 'xaeskse', 'xaesksrd']
+                     'xaesksld', 'xaeskse', 'xaesksrd',
+                     'xaesstld', 'xaesrnd', 'xaesstrd']
     with open(ATTRIBUTION_CSV, 'w', newline='') as f:
         w = csv.writer(f)
         w.writerow(['function', 'insns', 'insns_pct']
@@ -517,11 +525,13 @@ def _plot_function_cycles(ordered, func_mnem_count, total_cycles):
     sizes = [sum(cc.values()) for _, cc in top]
     aes_sizes = [cc.get('useful_aes', 0) for _, cc in top]
 
-    # Split useful_aes cycles into round-AES (aes32esmi/aes32esi) vs
-    # key-expansion (xaesksld/xaeskse/xaesksrd). One retire == one useful
+    # Split useful_aes cycles into round-AES (aes32esmi / aes32esi / xaesrnd)
+    # vs support (key-schedule load/expand/read AND state load/read - all
+    # shuttle / setup, never a round itself). One retire == one useful
     # cycle for these single-cycle insns, so per-mnemonic retire counts
     # approximate per-mnemonic useful cycles to within rounding.
-    KEYEXP_MNEMS = ('xaesksld', 'xaeskse', 'xaesksrd')
+    KEYEXP_MNEMS = ('xaesksld', 'xaeskse', 'xaesksrd',
+                    'xaesstld', 'xaesstrd')
 
     def _keyexp(func):
         mc = func_mnem_count.get(func, {})

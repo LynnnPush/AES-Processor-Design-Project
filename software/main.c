@@ -204,42 +204,53 @@ static inline void add_round_key_words(uint8_t *state,
     w[3] ^= k3;
 }
 
-// Single block AES-128 encryption with on-the-fly key expansion.
-// Round keys are generated between rounds in the hidden 128-bit key register
-// (XAesKeyExp) and read out word-by-word via aesksrd straight into the round
-// helpers' GPR arguments - no stack-resident round-key buffer.
+// Single block AES-128 encryption using the round-wise XAesState accelerator.
+// State and round key both live in hidden registers inside the core: the
+// 128-bit cipher state advances one full FIPS-197 forward round per cycle,
+// and AddRoundKey reads the live round key directly from the key-schedule
+// unit (no GPR shuttling). The byte-wise aes32esmi/aes32esi+aesksrd shuttle
+// path is kept behind REFERENCE_BYTEWISE for bring-up diffing.
 void aes128_encrypt_block(uint8_t *plaintext, uint8_t *key, uint8_t *ciphertext) {
-    uint8_t state[16];
-    memcpy(state, plaintext, 16);
+    // Load plaintext into the state register (one word per column). xaesstld
+    // is fire-and-forget; the data is captured by the internal state, not rd.
+    const uint32_t *pin = (const uint32_t *)plaintext;
+    aesstld(pin[0], 0);
+    aesstld(pin[1], 1);
+    aesstld(pin[2], 2);
+    aesstld(pin[3], 3);
 
-    // Seed the key register with the cipher key (the round-0 key). A load also
-    // resets the internal round counter, so the first aeskse() uses Rcon[1].
-    uint32_t *kin = (uint32_t *)key;
+    // Seed the key register with the cipher key (round-0 key). A load also
+    // resets the key-unit round counter, so the first aeskse() uses Rcon[1].
+    const uint32_t *kin = (const uint32_t *)key;
     aesksld(kin[0], 0);
     aesksld(kin[1], 1);
     aesksld(kin[2], 2);
     aesksld(kin[3], 3);
 
-    // Initial round: AddRoundKey with the cipher key.
-    add_round_key_words(state,
-                        aesksrd(0), aesksrd(1), aesksrd(2), aesksrd(3));
+    // Round 0: AddRoundKey-only with the cipher key (mode = 2).
+    aesrnd(2);
 
-    // Main rounds (1 to 9): aeskse() generates the next round key in one cycle
-    // between rounds, then the fused aes32esmi inner round consumes it. Fully
-    // unrolled (trip count is the compile-time constant 9).
+    // Middle rounds 1..9: aeskse() advances the key register to round key r,
+    // then aesrnd(0) consumes that key (mode = 0 = SBox+ShiftRows+MixCol+ARK).
+    // Fully unrolled so the aeskse->aesrnd ordering is branch-free - the
+    // pipeline can never reorder a key-expand past its round consumer.
     #pragma clang loop unroll(full)
     for (int round = 1; round < 10; round++) {
         aeskse();
-        aes_inner_round(state,
-                        aesksrd(0), aesksrd(1), aesksrd(2), aesksrd(3));
+        aesrnd(0);
     }
 
-    // Final round (10) - fused via aes32esi (no MixColumns).
+    // Final round 10: advance to rk10 and run aesrnd(1) (mode = 1 skips
+    // MixColumns to match FIPS-197 final-round semantics).
     aeskse();
-    aes_final_round(state,
-                    aesksrd(0), aesksrd(1), aesksrd(2), aesksrd(3));
+    aesrnd(1);
 
-    memcpy(ciphertext, state, 16);
+    // Read the four state columns back out into the ciphertext buffer.
+    uint32_t *cout = (uint32_t *)ciphertext;
+    cout[0] = aesstrd(0);
+    cout[1] = aesstrd(1);
+    cout[2] = aesstrd(2);
+    cout[3] = aesstrd(3);
 }
 
 // AES-128 ECB encryption (no padding)

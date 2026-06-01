@@ -1,0 +1,30 @@
+--- a/llvm/include/llvm/IR/IntrinsicsRISCV.td
++++ b/llvm/include/llvm/IR/IntrinsicsRISCV.td
+@@ -1801,6 +1801,26 @@
+                                    [IntrInaccessibleMemOnly, IntrHasSideEffects,
+                                     ImmArg<ArgIndex<0>>]>,
+                          ClangBuiltin<"__builtin_riscv_xaesksrd">;
+
++// PDP project-10 custom XAesState extension (round-wise AES-128 state).
++// Operate on a hidden 128-bit state register; AddRoundKey reads the live
++// round key from the XAesKeyExp register. IntrInaccessibleMemOnly +
++// IntrHasSideEffects keep load / round / read ordered relative to one
++// another and to the surrounding xaeskse() calls, and prevent the
++// void-returning load / round from being deleted as dead. The 2-bit
++// sidx (load/read) and mode (round) are ImmArgs.
++def int_riscv_xaesstld : Intrinsic<[], [llvm_i32_ty, llvm_i32_ty],
++                                   [IntrInaccessibleMemOnly, IntrHasSideEffects,
++                                    ImmArg<ArgIndex<1>>]>,
++                         ClangBuiltin<"__builtin_riscv_xaesstld">;
++def int_riscv_xaesrnd  : Intrinsic<[], [llvm_i32_ty],
++                                   [IntrInaccessibleMemOnly, IntrHasSideEffects,
++                                    ImmArg<ArgIndex<0>>]>,
++                         ClangBuiltin<"__builtin_riscv_xaesrnd">;
++def int_riscv_xaesstrd : Intrinsic<[llvm_i32_ty], [llvm_i32_ty],
++                                   [IntrInaccessibleMemOnly, IntrHasSideEffects,
++                                    ImmArg<ArgIndex<0>>]>,
++                         ClangBuiltin<"__builtin_riscv_xaesstrd">;
++
+ def int_riscv_aes64es   : ScalarCryptoGprGprIntrinsic64,
+                           ClangBuiltin<"__builtin_riscv_aes64es">;
+ def int_riscv_aes64esm  : ScalarCryptoGprGprIntrinsic64,
