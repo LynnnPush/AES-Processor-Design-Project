@@ -1,9 +1,9 @@
 --- a/llvm/lib/Target/RISCV/RISCVFeatures.td
 +++ b/llvm/lib/Target/RISCV/RISCVFeatures.td
-@@ -1324,6 +1324,15 @@
+@@ -1324,6 +1324,17 @@
        AssemblerPredicate<(all_of FeatureVendorXAesKeyExp),
                           "'XAesKeyExp' (custom AES key schedule)">;
-
+ 
 +// PDP project-10 custom extension - round-wise AES-128 state accelerator
 +// (hidden 128-bit cipher state register advanced one round per cycle via
 +// load / round / read instructions; AddRoundKey reads the live round key
@@ -16,5 +16,5 @@
 +                         "'XAesState' (custom round-wise AES)">;
 +
  // MIPS Extensions
-
+ 
  def FeatureVendorXMIPSCMov

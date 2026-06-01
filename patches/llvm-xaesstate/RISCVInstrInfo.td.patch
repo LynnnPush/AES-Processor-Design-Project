@@ -5,6 +5,6 @@
  include "RISCVInstrInfoXAes32esi.td"
  include "RISCVInstrInfoXAesKeyExp.td"
 +include "RISCVInstrInfoXAesState.td"
-
+ 
  //===----------------------------------------------------------------------===//
  // Global ISel

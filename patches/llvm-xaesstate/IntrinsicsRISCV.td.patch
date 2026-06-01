@@ -1,10 +1,10 @@
 --- a/llvm/include/llvm/IR/IntrinsicsRISCV.td
 +++ b/llvm/include/llvm/IR/IntrinsicsRISCV.td
-@@ -1801,6 +1801,26 @@
+@@ -1801,6 +1801,24 @@
                                     [IntrInaccessibleMemOnly, IntrHasSideEffects,
                                      ImmArg<ArgIndex<0>>]>,
                           ClangBuiltin<"__builtin_riscv_xaesksrd">;
-
+ 
 +// PDP project-10 custom XAesState extension (round-wise AES-128 state).
 +// Operate on a hidden 128-bit state register; AddRoundKey reads the live
 +// round key from the XAesKeyExp register. IntrInaccessibleMemOnly +
