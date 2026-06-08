@@ -782,11 +782,17 @@ module cv32e40p_id_stage
   // aes32esmi / aes32esi to the ALU. instr[31:30] holds bs for both Zkne
   // encodings (they share funct3/opcode and differ only in funct5).
   // The same channel carries the 2-bit word index (widx, also instr[31:30])
-  // for the custom key-schedule load/read instructions.
+  // for the custom key-schedule load/read instructions, and the 2-bit
+  // sidx (xaesstld / xaesstrd) or mode (xaesrnd) for the round-wise state
+  // accelerator (XAesState). All custom AES ops keep their 2-bit field in
+  // instr[31:30] so a single override forwards it identically.
   assign imm_vec_ext_id = ((alu_operator == ALU_AES32ESMI) ||
                            (alu_operator == ALU_AES32ESI)  ||
                            (alu_operator == ALU_XAESKSLD)  ||
-                           (alu_operator == ALU_XAESKSRD)) ? instr[31:30]
+                           (alu_operator == ALU_XAESKSRD)  ||
+                           (alu_operator == ALU_XAESSTLD)  ||
+                           (alu_operator == ALU_XAESRND)   ||
+                           (alu_operator == ALU_XAESSTRD)) ? instr[31:30]
                                                            : imm_vu_type[1:0];
 
 

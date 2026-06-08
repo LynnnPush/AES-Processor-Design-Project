@@ -5,54 +5,62 @@
 // http://solderpad.org/licenses/SHL-0.51.
 
 ////////////////////////////////////////////////////////////////////////////////
-// Design Name:    AES-128 key-schedule accelerator                           //
+// Design Name:    AES-128 round-wise state accelerator                       //
 // Project Name:   RI5CY / PDP project-10                                     //
 // Language:       SystemVerilog                                              //
 //                                                                            //
-// Description:    Holds the live 128-bit AES-128 round key in an internal    //
-//                 register (krk_q) and advances it to the next round key in  //
-//                 a single cycle. Drives the three custom instructions:      //
+// Description:    Stateful, round-at-a-time AES-128 encryption accelerator.  //
+//                 Holds the 128-bit cipher state in an internal register     //
+//                 (st_q[0:3]) and advances it by one full forward round      //
+//                 per cycle: SubBytes -> ShiftRows -> MixColumns ->          //
+//                 AddRoundKey. The AddRoundKey term is supplied directly by  //
+//                 the adjacent key-schedule unit (krk_i is the live 128-bit  //
+//                 round key), so middle/final rounds need NO GPR operands.   //
 //                                                                            //
-//                   xaesksld rs1, widx : krk_q[widx] <= rs1  (seed key word) //
-//                   xaeskse            : krk_q       <= KeyExpand(krk_q)      //
-//                   xaesksrd rd, widx  : rd          <= krk_q[widx]          //
+//                 The three custom instructions driven by this unit:         //
 //                                                                            //
-//                 The Rcon round constant is selected by an internal round   //
-//                 counter (rcnt_q) so xaeskse needs no operand: a key load   //
-//                 resets the counter to 0, each expand consumes Rcon[rcnt]   //
-//                 and increments. Round keys are produced strictly in order  //
-//                 (round 1..10), which the unrolled software loop guarantees.//
+//                   xaesstld rs1, sidx  : st_q[sidx] <= rs1 (load plaintext) //
+//                   xaesrnd  mode       : st_q       <= round(st_q, krk)     //
+//                   xaesstrd rd, sidx   : rd         <= st_q[sidx] (read)    //
 //                                                                            //
-//                 One expand step (FIPS-197 AES-128, little-endian words):   //
-//                   rot = ROR32(k3, 8)               // RotWord              //
-//                   sub = SBox per byte of rot       // SubWord              //
-//                   g   = sub ^ {24'b0, Rcon[rcnt]}  // Rcon into byte 0     //
-//                   n0  = k0 ^ g                                             //
-//                   n1  = k1 ^ n0                                            //
-//                   n2  = k2 ^ n1                                            //
-//                   n3  = k3 ^ n2                                            //
+//                 The 2-bit `mode` operand picks the round flavour:          //
+//                   mode = 0 : middle round (SBox + ShiftRows + MixCol + ARK)//
+//                   mode = 1 : final round (SBox + ShiftRows + ARK, no MixCol)//
+//                   mode = 2 : AddRoundKey-only (round 0)                    //
+//                                                                            //
+//                 Critical correctness rule: ShiftRows for column c reads    //
+//                 bytes s[0][c], s[1][c+1], s[2][c+2], s[3][c+3] - i.e. one  //
+//                 byte from every OLD column. The whole 128-bit state must   //
+//                 therefore be latched simultaneously, exactly like          //
+//                 `krk_q <= {n0,n1,n2,n3}` in cv32e40p_aes_ks.sv. The single //
+//                 `always_ff` writes all four words at once, so a partial    //
+//                 update can never leak overwritten bytes into later columns.//
+//                                                                            //
+//                 Sequential updates (ld_en_i / rnd_en_i) are commit-gated   //
+//                 by the ALU (enable_i & ex_ready_i), identical to the key   //
+//                 schedule, so a pipeline stall cannot apply the same round  //
+//                 twice.                                                     //
 ////////////////////////////////////////////////////////////////////////////////
 
-module cv32e40p_aes_ks
+module cv32e40p_aes_state
 (
-    input  logic        clk,
-    input  logic        rst_n,
+    input  logic         clk,
+    input  logic         rst_n,
 
-    input  logic        ld_en_i,    // commit-gated: write krk_q[widx_i] from wdata_i
-    input  logic        exp_en_i,   // commit-gated: advance krk_q to next round key
-    input  logic [ 1:0] widx_i,     // word index for load / read
-    input  logic [31:0] wdata_i,    // rs1 data for load
+    input  logic         ld_en_i,    // commit-gated: st_q[sidx_i] <= wdata_i
+    input  logic         rnd_en_i,   // commit-gated: st_q        <= round(st_q, krk_i)
+    input  logic [ 1:0]  mode_i,     // 00 = middle, 01 = final, 10 = ARK-only
+    input  logic [ 1:0]  sidx_i,     // state word index for load / read
+    input  logic [31:0]  wdata_i,    // rs1 data for load
 
-    output logic [31:0] rdata_o,    // selected key word for read
+    input  logic [127:0] krk_i,      // live round key from cv32e40p_aes_ks
 
-    // Full live round key concatenated as {krk_q[3], krk_q[2], krk_q[1], krk_q[0]}
-    // (column 0 in the low 32 bits). Consumed by cv32e40p_aes_state for the
-    // AddRoundKey term so middle rounds need no GPR operands.
-    output logic [127:0] krk_full_o
+    output logic [31:0]  rdata_o     // selected state word for read-out
 );
 
     // ------------------------------------------------------------------------
-    // AES forward S-box (same LUT as cv32e40p_aes / cv32e40p_aes_fi)
+    // AES forward S-box (same LUT as cv32e40p_aes_ks). Sixteen parallel
+    // instances are inferred below, one per state byte.
     // ------------------------------------------------------------------------
     function automatic logic [7:0] aes_sbox(input logic [7:0] x);
         unique case (x)
@@ -124,82 +132,144 @@ module cv32e40p_aes_ks
     endfunction
 
     // ------------------------------------------------------------------------
-    // Rcon round-constant LUT (FIPS-197). Index 0 -> round 1, .. index 9 -> round 10.
+    // GF(2^8) xtime: multiply-by-x modulo the AES polynomial x^8+x^4+x^3+x+1.
+    // (a << 1) ^ (a[7] ? 0x1b : 0). Used four times per state byte in
+    // MixColumns.
     // ------------------------------------------------------------------------
-    function automatic logic [7:0] aes_rcon(input logic [3:0] idx);
-        unique case (idx)
-            4'd0: aes_rcon = 8'h01; 4'd1: aes_rcon = 8'h02; 4'd2: aes_rcon = 8'h04;
-            4'd3: aes_rcon = 8'h08; 4'd4: aes_rcon = 8'h10; 4'd5: aes_rcon = 8'h20;
-            4'd6: aes_rcon = 8'h40; 4'd7: aes_rcon = 8'h80; 4'd8: aes_rcon = 8'h1b;
-            4'd9: aes_rcon = 8'h36; default: aes_rcon = 8'h00;
-        endcase
+    function automatic logic [7:0] aes_xtime(input logic [7:0] a);
+        aes_xtime = {a[6:0], 1'b0} ^ (a[7] ? 8'h1b : 8'h00);
     endfunction
 
     // ------------------------------------------------------------------------
-    // State: 128-bit round key (4 little-endian words) + round counter
+    // State storage: one 32-bit little-endian word per column. Logical AES
+    // grid mapping: s[row][col] = st_q[col][8*row +: 8] (row 0 = LSB byte).
     // ------------------------------------------------------------------------
-    logic [31:0] krk_q [0:3];
-    logic [ 3:0] rcnt_q;
-
-    // ------------------------------------------------------------------------
-    // Combinational next round key (one expand step)
-    // ------------------------------------------------------------------------
-    logic [31:0] k0, k1, k2, k3;
-    logic [31:0] rot, sub, g;
-    logic [31:0] n0, n1, n2, n3;
-
-    assign k0 = krk_q[0];
-    assign k1 = krk_q[1];
-    assign k2 = krk_q[2];
-    assign k3 = krk_q[3];
-
-    // RotWord = ROR32(k3, 8): low byte rotates up to the top byte.
-    assign rot = {k3[7:0], k3[31:8]};
-
-    // SubWord: forward S-box on each byte.
-    assign sub = {aes_sbox(rot[31:24]), aes_sbox(rot[23:16]),
-                  aes_sbox(rot[15:8]),  aes_sbox(rot[7:0])};
-
-    // Rcon XORs into byte 0 (LSB) of the word.
-    assign g  = sub ^ {24'b0, aes_rcon(rcnt_q)};
-
-    assign n0 = k0 ^ g;
-    assign n1 = k1 ^ n0;
-    assign n2 = k2 ^ n1;
-    assign n3 = k3 ^ n2;
+    logic [31:0] st_q [0:3];
 
     // ------------------------------------------------------------------------
-    // Sequential update (commit-gated by the ALU: ld_en_i / exp_en_i are only
-    // asserted on the cycle the instruction leaves EX, so a stall cannot apply
-    // the same step twice). A key load resets the round counter.
+    // Step 1 - ShiftRows is pure wiring: row r of the output column c is
+    // sourced from row r of the OLD column (c+r) mod 4. The 16 indices below
+    // unpack the 4x4 grid before re-bundling it after SubBytes.
+    // ------------------------------------------------------------------------
+    logic [7:0] sr [0:3][0:3];   // sr[row][col]  (post-ShiftRows)
+
+    genvar gr, gc;
+    generate
+        for (gr = 0; gr < 4; gr++) begin : gen_sr_row
+            for (gc = 0; gc < 4; gc++) begin : gen_sr_col
+                // (gc + gr) mod 4 selects the diagonal source column.
+                assign sr[gr][gc] = st_q[(gc + gr) & 2'b11][8*gr +: 8];
+            end
+        end
+    endgenerate
+
+    // ------------------------------------------------------------------------
+    // Step 2 - SubBytes: 16 parallel forward S-box lookups, one per byte.
+    // Same logic depth as a single aes32esmi -> no Fmax penalty vs. byte path.
+    // ------------------------------------------------------------------------
+    logic [7:0] t [0:3][0:3];    // t[row][col]   (post-SubBytes)
+    generate
+        for (gr = 0; gr < 4; gr++) begin : gen_sub_row
+            for (gc = 0; gc < 4; gc++) begin : gen_sub_col
+                assign t[gr][gc] = aes_sbox(sr[gr][gc]);
+            end
+        end
+    endgenerate
+
+    // ------------------------------------------------------------------------
+    // Step 3 - MixColumns (applied per column when mode != FINAL). The AES
+    // matrix multiplication
+    //   [2 3 1 1]   [t0]      [o0]
+    //   [1 2 3 1] * [t1]   =  [o1]
+    //   [1 1 2 3]   [t2]      [o2]
+    //   [3 1 1 2]   [t3]      [o3]
+    // expands to xtime + a handful of XORs using the identity 3*x = xtime(x)^x.
+    // ------------------------------------------------------------------------
+    logic [7:0] mc [0:3][0:3];   // mc[row][col]  (post-MixColumns)
+    generate
+        for (gc = 0; gc < 4; gc++) begin : gen_mix_col
+            logic [7:0] t0, t1, t2, t3;
+            logic [7:0] xt0, xt1, xt2, xt3;
+            assign t0 = t[0][gc];
+            assign t1 = t[1][gc];
+            assign t2 = t[2][gc];
+            assign t3 = t[3][gc];
+            assign xt0 = aes_xtime(t0);
+            assign xt1 = aes_xtime(t1);
+            assign xt2 = aes_xtime(t2);
+            assign xt3 = aes_xtime(t3);
+            // 2*t0 ^ 3*t1 ^ 1*t2 ^ 1*t3 = xt0 ^ (xt1^t1) ^ t2 ^ t3, etc.
+            assign mc[0][gc] = xt0 ^ xt1 ^ t1  ^ t2  ^ t3;
+            assign mc[1][gc] = t0  ^ xt1 ^ xt2 ^ t2  ^ t3;
+            assign mc[2][gc] = t0  ^ t1  ^ xt2 ^ xt3 ^ t3;
+            assign mc[3][gc] = xt0 ^ t0  ^ t1  ^ t2  ^ xt3;
+        end
+    endgenerate
+
+    // ------------------------------------------------------------------------
+    // Step 3a - Per-mode round source selection.
+    //   mode = 2'b00 : middle round - take MixColumns output
+    //   mode = 2'b01 : final round  - skip MixColumns, take SubBytes output
+    //   mode = 2'b10 : AddRoundKey-only (round 0) - bypass all of SubBytes /
+    //                  ShiftRows / MixColumns and feed st_q straight in.
+    // ------------------------------------------------------------------------
+    logic [7:0] post [0:3][0:3]; // 4x4 byte grid feeding AddRoundKey
+    generate
+        for (gr = 0; gr < 4; gr++) begin : gen_post_row
+            for (gc = 0; gc < 4; gc++) begin : gen_post_col
+                always_comb begin
+                    unique case (mode_i)
+                        2'b00:   post[gr][gc] = mc[gr][gc];                 // middle
+                        2'b01:   post[gr][gc] = t[gr][gc];                  // final (no MixCol)
+                        2'b10:   post[gr][gc] = st_q[gc][8*gr +: 8];        // ARK-only
+                        default: post[gr][gc] = mc[gr][gc];
+                    endcase
+                end
+            end
+        end
+    endgenerate
+
+    // ------------------------------------------------------------------------
+    // Step 4 - AddRoundKey: XOR with the live round key from cv32e40p_aes_ks.
+    // krk_i is packed {krk_q[3], krk_q[2], krk_q[1], krk_q[0]} (column 0 in
+    // the low 32 bits) so byte indexing matches the local st_q layout.
+    // ------------------------------------------------------------------------
+    logic [31:0] next_state [0:3];
+    generate
+        for (gc = 0; gc < 4; gc++) begin : gen_ark_col
+            logic [31:0] krk_word;
+            assign krk_word = krk_i[32*gc +: 32];
+            assign next_state[gc] = {post[3][gc], post[2][gc], post[1][gc], post[0][gc]} ^ krk_word;
+        end
+    endgenerate
+
+    // ------------------------------------------------------------------------
+    // Step 5 - Sequential update. Commit-gated by the ALU
+    // (ld_en_i / rnd_en_i only assert on the cycle the instruction leaves EX),
+    // so a multi-cycle stall cannot apply a load or round twice. The whole
+    // 128-bit state is latched in a single non-blocking assignment - never
+    // column-by-column - so the ShiftRows diagonal can never see a half-
+    // updated state.
     // ------------------------------------------------------------------------
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            krk_q[0] <= 32'b0;
-            krk_q[1] <= 32'b0;
-            krk_q[2] <= 32'b0;
-            krk_q[3] <= 32'b0;
-            rcnt_q   <= 4'b0;
+            st_q[0] <= 32'b0;
+            st_q[1] <= 32'b0;
+            st_q[2] <= 32'b0;
+            st_q[3] <= 32'b0;
         end else if (ld_en_i) begin
-            krk_q[widx_i] <= wdata_i;
-            rcnt_q        <= 4'b0;
-        end else if (exp_en_i) begin
-            krk_q[0] <= n0;
-            krk_q[1] <= n1;
-            krk_q[2] <= n2;
-            krk_q[3] <= n3;
-            rcnt_q   <= rcnt_q + 4'b1;
+            st_q[sidx_i] <= wdata_i;
+        end else if (rnd_en_i) begin
+            st_q[0] <= next_state[0];
+            st_q[1] <= next_state[1];
+            st_q[2] <= next_state[2];
+            st_q[3] <= next_state[3];
         end
     end
 
     // ------------------------------------------------------------------------
-    // Read port (combinational): select key word widx_i
+    // Combinational read port: xaesstrd selects state word sidx_i.
     // ------------------------------------------------------------------------
-    assign rdata_o = krk_q[widx_i];
-
-    // Flatten the live round key for the round-wise state unit (XAesState).
-    // Layout matches how cv32e40p_aes_state indexes columns: bits[31:0] are
-    // column 0, bits[63:32] are column 1, and so on.
-    assign krk_full_o = {krk_q[3], krk_q[2], krk_q[1], krk_q[0]};
+    assign rdata_o = st_q[sidx_i];
 
 endmodule

@@ -656,6 +656,39 @@ module cv32e40p_decoder import cv32e40p_pkg::*; import cv32e40p_apu_core_pkg::*;
           regfile_alu_we      = 1'b1;  // reads the internal key register into rd
         end
 
+        // ---------------- PDP project-10 custom AES round-wise state ------------
+        // (XAesState) - three custom instructions on a hidden 128-bit state
+        // register. Share OPC_OP / funct3=000 with the rest of the AES family
+        // and pick unique funct5 values 10101 / 10110 / 10111. The 2-bit
+        // sidx / mode field rides in instr[31:30] and is forwarded to the ALU
+        // via imm_vec_ext (see id_stage override below). Decoded BEFORE the
+        // prefix-{10,11} branches so instr[31:30] never aliases PULP decoding.
+
+        // xaesstld rs1, sidx : st[sidx] <= rs1.  funct5 = 0b10101, sidx in [31:30].
+        else if (instr_rdata_i[14:12] == 3'b000 && instr_rdata_i[29:25] == 5'b10101) begin
+          alu_en              = 1'b1;
+          alu_operator_o      = ALU_XAESSTLD;
+          alu_op_a_mux_sel_o  = OP_A_REGA_OR_FWD;
+          rega_used_o         = 1'b1;
+          regfile_alu_we      = 1'b0;  // writes the internal state register, not rd
+        end
+
+        // xaesrnd mode : st <= round(st, krk).  funct5 = 0b10110, mode in [31:30].
+        // No GPR operands - both the state and the round key live inside the
+        // accelerator. mode = 0/1/2 picks middle / final / ARK-only.
+        else if (instr_rdata_i[14:12] == 3'b000 && instr_rdata_i[29:25] == 5'b10110) begin
+          alu_en              = 1'b1;
+          alu_operator_o      = ALU_XAESRND;
+          regfile_alu_we      = 1'b0;  // updates the internal state register only
+        end
+
+        // xaesstrd rd, sidx : rd <= st[sidx].  funct5 = 0b10111, sidx in [31:30].
+        else if (instr_rdata_i[14:12] == 3'b000 && instr_rdata_i[29:25] == 5'b10111) begin
+          alu_en              = 1'b1;
+          alu_operator_o      = ALU_XAESSTRD;
+          regfile_alu_we      = 1'b1;  // reads the internal state register into rd
+        end
+
         // PREFIX 11
         else if (instr_rdata_i[31:30] == 2'b11) begin
           if (PULP_XPULP) begin

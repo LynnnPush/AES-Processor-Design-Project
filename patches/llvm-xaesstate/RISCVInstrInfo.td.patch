@@ -1,0 +1,10 @@
+--- a/llvm/lib/Target/RISCV/RISCVInstrInfo.td
++++ b/llvm/lib/Target/RISCV/RISCVInstrInfo.td
+@@ -2187,6 +2187,7 @@
+ include "RISCVInstrInfoXAes32esmi.td"
+ include "RISCVInstrInfoXAes32esi.td"
+ include "RISCVInstrInfoXAesKeyExp.td"
++include "RISCVInstrInfoXAesState.td"
+ 
+ //===----------------------------------------------------------------------===//
+ // Global ISel

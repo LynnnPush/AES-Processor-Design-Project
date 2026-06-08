@@ -15,6 +15,7 @@ No flags. Paths and constants live at the top of this file.
 """
 
 import csv
+import hashlib
 import os
 import re
 import sys
@@ -53,13 +54,48 @@ FUNC_CYCLES_PNG = os.path.join(_SIM_DIR, 'function_cycles.png')
 PC_OFFSET = 0x8000
 TOP_N = 20
 
+# Fixed function -> outer-ring colour map. Wedge colour must track function
+# *identity*, not its cycle-count rank, so the same function keeps one colour
+# across runs and across branches (otherwise matplotlib's default cycle paints
+# the largest slice blue, 2nd orange, ... and colours shuffle when ranks move).
+# Any function not listed falls back to a name-hashed palette entry, which is
+# also deterministic across branches.
+FUNC_COLORS = {
+    'main':                 '#1f77b4',  # blue
+    'exit':                 '#ff7f0e',  # orange
+    'aes128_encrypt_block': '#2ca02c',  # green
+    'reset_handler':        '#d62728',  # red
+    'zero_loop_end':        '#9467bd',  # purple
+    'zero_loop':            '#8c564b',  # brown
+    '_start':               '#17becf',  # cyan
+    '<unknown>':            '#7f7f7f',  # grey
+}
+# Reserve a stable colour for the aggregated "other (N funcs)" wedge.
+FUNC_OTHER_COLOR = '#bbbbbb'
+# Deterministic fallbacks for any function not named above (avoids the inner
+# ring's magenta/violet/grey so the two rings stay distinguishable).
+_FUNC_FALLBACK = ['#bcbd22', '#aec7e8', '#ffbb78', '#98df8a', '#ff9896',
+                  '#c5b0d5', '#c49c94', '#f7b6d2', '#dbdb8d', '#9edae5']
+
+
+def _func_color(label):
+    """Stable colour for an outer-ring label, independent of slice size."""
+    if label.startswith('other ('):
+        return FUNC_OTHER_COLOR
+    if label in FUNC_COLORS:
+        return FUNC_COLORS[label]
+    h = int(hashlib.md5(label.encode('utf-8')).hexdigest(), 16)
+    return _FUNC_FALLBACK[h % len(_FUNC_FALLBACK)]
+
 # AES-related custom mnemonics. aes32esmi/aes32esi are the pure round/sub
 # helpers from xaes32esmi/xaes32esi; xaesksld/xaeskse/xaesksrd drive the
-# on-the-fly key schedule from xaeskeyexp. All five count as "useful AES"
-# for the CPI stack and per-function attribution.
+# on-the-fly key schedule from xaeskeyexp; xaesstld/xaesrnd/xaesstrd drive
+# the round-wise state accelerator from xaesstate. All eight count as
+# "useful AES" for the CPI stack and per-function attribution.
 AES_MNEMS = frozenset((
     'aes32esmi', 'aes32esi',
     'xaesksld', 'xaeskse', 'xaesksrd',
+    'xaesstld', 'xaesrnd', 'xaesstrd',
 ))
 
 
@@ -240,6 +276,11 @@ def decode_rv32(instr):
             if funct5 == 0b10010: return 'xaesksld'
             if funct5 == 0b10000: return 'xaeskse'
             if funct5 == 0b10100: return 'xaesksrd'
+            # Round-wise state accelerator (xaesstate): sidx (load/read) or
+            # mode (round) carried in Inst[31:30] - decode-irrelevant here.
+            if funct5 == 0b10101: return 'xaesstld'
+            if funct5 == 0b10110: return 'xaesrnd'
+            if funct5 == 0b10111: return 'xaesstrd'
         if f7 == 0x01: return M_FUNCT3.get(f3, 'mext')
         if f3 == 0b000: return 'sub' if f7 == 0x20 else 'add'
         if f3 == 0b101: return 'sra' if f7 == 0x20 else 'srl'
@@ -473,7 +514,8 @@ def _write_attribution_csv(ordered, func_insn_count, func_mnem_count,
     # Stable, deterministic mnemonic column order so the CSV header stays
     # the same regardless of which AES insns happen to appear in a run.
     aes_mnem_cols = ['aes32esmi', 'aes32esi',
-                     'xaesksld', 'xaeskse', 'xaesksrd']
+                     'xaesksld', 'xaeskse', 'xaesksrd',
+                     'xaesstld', 'xaesrnd', 'xaesstrd']
     with open(ATTRIBUTION_CSV, 'w', newline='') as f:
         w = csv.writer(f)
         w.writerow(['function', 'insns', 'insns_pct']
@@ -517,11 +559,13 @@ def _plot_function_cycles(ordered, func_mnem_count, total_cycles):
     sizes = [sum(cc.values()) for _, cc in top]
     aes_sizes = [cc.get('useful_aes', 0) for _, cc in top]
 
-    # Split useful_aes cycles into round-AES (aes32esmi/aes32esi) vs
-    # key-expansion (xaesksld/xaeskse/xaesksrd). One retire == one useful
+    # Split useful_aes cycles into round-AES (aes32esmi / aes32esi / xaesrnd)
+    # vs support (key-schedule load/expand/read AND state load/read - all
+    # shuttle / setup, never a round itself). One retire == one useful
     # cycle for these single-cycle insns, so per-mnemonic retire counts
     # approximate per-mnemonic useful cycles to within rounding.
-    KEYEXP_MNEMS = ('xaesksld', 'xaeskse', 'xaesksrd')
+    KEYEXP_MNEMS = ('xaesksld', 'xaeskse', 'xaesksrd',
+                    'xaesstld', 'xaesstrd')
 
     def _keyexp(func):
         mc = func_mnem_count.get(func, {})
@@ -548,9 +592,11 @@ def _plot_function_cycles(ordered, func_mnem_count, total_cycles):
     # them as content rather than clipping at the figure edge.
     fig, ax = plt.subplots(figsize=(15, 7))
 
-    # Outer ring: per function.
+    # Outer ring: per function. Colour by function identity (fixed map), not
+    # by slice order, so colours are stable across runs and branches.
+    outer_colors = [_func_color(l) for l in labels]
     outer_wedges, _ = ax.pie(
-        sizes, radius=1.0, startangle=90,
+        sizes, radius=1.0, startangle=90, colors=outer_colors,
         wedgeprops={'width': 0.3, 'edgecolor': 'white'})
 
     # Inner ring: each outer slice split into
@@ -585,8 +631,9 @@ def _plot_function_cycles(ordered, func_mnem_count, total_cycles):
                                               round_sizes, keyexp_sizes)]
     outer_legend = ax.legend(
         outer_wedges, legend_labels,
-        loc='center left', bbox_to_anchor=(1.02, 0.5),
-        fontsize=9, frameon=False, title='function (outer ring)')
+        loc='center left', bbox_to_anchor=(1.02, 0.66),
+        fontsize=13, title_fontsize=15, frameon=False,
+        title='function (outer ring)')
     ax.add_artist(outer_legend)
 
     total_round = sum(round_sizes)
@@ -609,13 +656,29 @@ def _plot_function_cycles(ordered, func_mnem_count, total_cycles):
                        f'{total_keyexp / total_aes * 100:.1f}%')
     inner_legend = ax.legend(
         handles=inner_handles,
-        loc='lower left', bbox_to_anchor=(1.02, -0.02),
-        fontsize=9, frameon=False, title=inner_title)
+        loc='center left', bbox_to_anchor=(1.02, 0.24),
+        fontsize=13, title_fontsize=15, frameon=False, title=inner_title)
 
-    ax.set_title('Cycle attribution by function '
-                 '(inner ring: AES vs non-AES)')
+    suptitle = fig.suptitle(
+        'Cycle attribution by function (inner ring: AES vs non-AES)',
+        fontsize=16, y=0.98)
+
+    # Center the title over the *full* cropped content (donut + both legends),
+    # not the figure midpoint — savefig's tight crop includes the wide legend
+    # column on the right (via bbox_extra_artists), shifting the true visual
+    # center rightward. fig.get_tightbbox() under-counts those legends, so we
+    # union the artists' own window extents instead.
+    fig.canvas.draw()
+    _r = fig.canvas.get_renderer()
+    _inv = fig.dpi_scale_trans.inverted()
+    _boxes = [a.get_window_extent(_r).transformed(_inv)
+              for a in (ax, outer_legend, inner_legend)]
+    _x0 = min(b.x0 for b in _boxes)
+    _x1 = max(b.x1 for b in _boxes)
+    suptitle.set_x(0.5 * (_x0 + _x1) / fig.get_size_inches()[0])
+
     fig.savefig(FUNC_CYCLES_PNG, dpi=150, bbox_inches='tight',
-                bbox_extra_artists=(outer_legend, inner_legend))
+                bbox_extra_artists=(outer_legend, inner_legend, suptitle))
     plt.close(fig)
 
 

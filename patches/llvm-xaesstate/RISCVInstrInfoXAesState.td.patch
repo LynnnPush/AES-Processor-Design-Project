@@ -1,0 +1,95 @@
+--- /dev/null
++++ b/llvm/lib/Target/RISCV/RISCVInstrInfoXAesState.td
+@@ -0,0 +1,90 @@
++//===- RISCVInstrInfoXAesState.td - PDP project-10 round-wise AES *- tablegen -*-===//
++//
++// Custom round-wise AES-128 instructions on the project's riscy core. They
++// drive a hidden 128-bit cipher-state register that advances one full FIPS-197
++// forward round (SubBytes -> ShiftRows -> MixColumns -> AddRoundKey) per
++// cycle. AddRoundKey reads the live round key from the adjacent XAesKeyExp
++// register, so middle/final rounds need no GPR operands.
++//
++//   xaesstld rs1, sidx : st[sidx] <- rs1        (load one state word)
++//   xaesrnd  mode      : st       <- round(st)  (one full AES round)
++//   xaesstrd rd,  sidx : rd       <- st[sidx]   (read one state word)
++//
++// All three share OPC_OP / funct3=000 and pick unique funct5 values in
++// Inst[29:25] (0b10101 ld, 0b10110 rnd, 0b10111 rd). The 2-bit field in
++// Inst[31:30] carries sidx for load/read and mode for round
++// (0 = middle, 1 = final, 2 = AddRoundKey-only). Gated on XAesState.
++//
++//===----------------------------------------------------------------------===//
++
++//===----------------------------------------------------------------------===//
++// Instruction formats
++//===----------------------------------------------------------------------===//
++
++// Load: one GPR source, no destination, sidx in Inst[31:30].
++// mayLoad/mayStore = 1 to match the intrinsic's IntrInaccessibleMemOnly
++// (hidden read+write of the state register), which TableGen infers from the
++// selection patterns; this also keeps the ops ordered and un-eliminated.
++let hasSideEffects = 1, mayLoad = 1, mayStore = 1 in
++class AESST_Load<bits<5> funct5, string opcodestr>
++    : RVInstRBase<0b000, OPC_OP, (outs), (ins GPR:$rs1, byteselect:$sidx),
++                  opcodestr, "$rs1, $sidx"> {
++  bits<2> sidx;
++  let rs2 = 0;
++  let rd  = 0;
++  let Inst{31-30} = sidx;
++  let Inst{29-25} = funct5;
++}
++
++// Round: no register operands, 2-bit mode in Inst[31:30].
++// mayLoad/mayStore = 1 to match the intrinsic's IntrInaccessibleMemOnly
++// (hidden read+write of the state register and read of the key register),
++// which TableGen infers from the selection patterns; this also keeps the
++// ops ordered and un-eliminated.
++let hasSideEffects = 1, mayLoad = 1, mayStore = 1 in
++class AESST_Round<bits<5> funct5, string opcodestr>
++    : RVInstRBase<0b000, OPC_OP, (outs), (ins byteselect:$mode),
++                  opcodestr, "$mode"> {
++  bits<2> mode;
++  let rs2 = 0;
++  let rs1 = 0;
++  let rd  = 0;
++  let Inst{31-30} = mode;
++  let Inst{29-25} = funct5;
++}
++
++// Read: GPR destination, sidx in Inst[31:30].
++// mayLoad/mayStore = 1 to match the intrinsic's IntrInaccessibleMemOnly
++// (hidden read+write of the state register), which TableGen infers from the
++// selection patterns; this also keeps the ops ordered and un-eliminated.
++let hasSideEffects = 1, mayLoad = 1, mayStore = 1 in
++class AESST_Read<bits<5> funct5, string opcodestr>
++    : RVInstRBase<0b000, OPC_OP, (outs GPR:$rd), (ins byteselect:$sidx),
++                  opcodestr, "$rd, $sidx"> {
++  bits<2> sidx;
++  let rs2 = 0;
++  let rs1 = 0;
++  let Inst{31-30} = sidx;
++  let Inst{29-25} = funct5;
++}
++
++//===----------------------------------------------------------------------===//
++// Instructions
++//===----------------------------------------------------------------------===//
++
++let Predicates = [HasVendorXAesState, IsRV32] in {
++def XAESSTLD : AESST_Load <0b10101, "xaesstld">;
++def XAESRND  : AESST_Round<0b10110, "xaesrnd">;
++def XAESSTRD : AESST_Read <0b10111, "xaesstrd">;
++} // Predicates = [HasVendorXAesState, IsRV32]
++
++//===----------------------------------------------------------------------===//
++// Codegen patterns
++//===----------------------------------------------------------------------===//
++
++let Predicates = [HasVendorXAesState, IsRV32] in {
++def : Pat<(int_riscv_xaesstld (XLenVT GPR:$rs1), byteselect:$sidx),
++          (XAESSTLD GPR:$rs1, byteselect:$sidx)>;
++def : Pat<(int_riscv_xaesrnd byteselect:$mode),
++          (XAESRND byteselect:$mode)>;
++def : Pat<(XLenVT (int_riscv_xaesstrd byteselect:$sidx)),
++          (XAESSTRD byteselect:$sidx)>;
++} // Predicates = [HasVendorXAesState, IsRV32]

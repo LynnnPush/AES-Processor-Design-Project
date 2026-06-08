@@ -1,0 +1,18 @@
+--- a/clang/include/clang/Basic/BuiltinsRISCV.td
++++ b/clang/include/clang/Basic/BuiltinsRISCV.td
+@@ -113,6 +113,15 @@
+ def xaesksrd : RISCVBuiltin<"unsigned int(_Constant unsigned int)">;
+ } // Features = "xaeskeyexp,32bit"
+ 
++//===----------------------------------------------------------------------===//
++// PDP project-10 custom XAesState extension (round-wise AES-128 state).
++//===----------------------------------------------------------------------===//
++let Features = "xaesstate,32bit" in {
++def xaesstld : RISCVBuiltin<"void(unsigned int, _Constant unsigned int)">;
++def xaesrnd  : RISCVBuiltin<"void(_Constant unsigned int)">;
++def xaesstrd : RISCVBuiltin<"unsigned int(_Constant unsigned int)">;
++} // Features = "xaesstate,32bit"
++
+ let Features = "zkne,64bit" in {
+ def aes64es : RISCVBuiltin<"uint64_t(uint64_t, uint64_t)">;
+ def aes64esm : RISCVBuiltin<"uint64_t(uint64_t, uint64_t)">;
