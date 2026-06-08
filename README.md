@@ -235,17 +235,34 @@ Each cycle of `pipeline_trace.csv` is classified into exactly one bucket (priori
 | `fetch_drain` | post-flush refill, `!instr_valid_id && !if_busy` |
 | `other_bubble` | everything else |
 
-The baseline CPI stack is checked in at `cpi_stack_baseline.png`:
+The two stacks below are the **full-program** CPI breakdown — baseline (software AES) on the left, current round-wise build on the right. **Note the y-axes differ by ~150×** (0–60 000 vs 0–394 cycles): the bars are *not* drawn to a common scale.
 
-<p align="center">
-  <img src="./cpi_stack_baseline.png" alt="baseline CPI stack" width="300">
-</p>
+<table>
+<tr>
+  <td align="center"><b>Baseline (software AES)</b></td>
+  <td align="center"><b>Current (round-wise HW)</b></td>
+</tr>
+<tr>
+  <td valign="top"><img src="./cpi_stack_baseline.png" alt="baseline CPI stack" width="270"></td>
+  <td valign="top"><img src="hardware/src/simulation/cpi_stack.png" alt="current CPI stack" width="380"></td>
+</tr>
+</table>
 
-Total ≈ 59 590 cycles for the baseline run, dominated by `useful_execution` (~37 k) and `ifetch_miss` (~18 k). The large `ifetch_miss` slice reflects the 2-cycle BRAM read latency on the instruction memory port.
+- **Total cycles fall from ≈ 59 590 to ≈ 394 (~150×).** The baseline is dominated by `useful_execution` (~37 k cycles — software `mix_columns` / `gf_mult`) and `ifetch_miss` (~18 k, the 2-cycle BRAM read latency on the instruction port). Folding AES into the HW round engine deletes almost all of that work.
+- **AES is now 33 single-cycle instructions** — the `useful_aes` slice (8.4 %, ≈ 33 cycles), exactly the AES-extension op count per block. Everything the software kernel used to spend on S-box / MixColumns / key expansion is gone from the cycle count.
+- **What remains (≈ 394 cycles) is mostly non-AES scaffolding:** `useful_other` (53.6 %, ≈ 211 cycles — `main`, I/O, `exit`, `reset_handler`) plus `ifetch_miss` (16.0 %, ≈ 63 cycles). The *absolute* `ifetch_miss` collapsed from ~18 k to ~63 cycles; its *share* rose only because the denominator shrank ~150×.
+- **Fixed control overheads now surface:** `jump_redirect` (10.7 %), `load_use_stall` (6.9 %) and `branch_penalty` (4.6 %) were negligible fractions of the baseline. They are essentially unchanged in absolute terms — they are just no longer dwarfed by the AES kernel.
+- `profile.py` now refines the single baseline `useful_execution` bucket into `useful_aes` vs `useful_other`, isolating the accelerator's contribution directly in the stack.
 
 ### Dynamic instruction & function profiling ([profile.py](software/python_script/profile.py))
 
 For every cycle where an instruction retires (`is_decoding && id_ready`), the script attributes the retire to a function (via `software/aes.map` symbol ranges, looking up `pc_id`) and an opcode mnemonic (decoded from the raw `instr` bits, RV32IMC + Zicsr + the custom AES instructions). Outputs the per-function `profile_attribution.csv` and per-mnemonic `profile_opcodes.csv`. In the current trace `aes128_encrypt_block` retires 46 instructions in 55 cycles, 33 of them AES-extension ops (4 `xaesksld`, 10 `xaeskse`, 4 `xaesstld`, 11 `xaesrnd`, 4 `xaesstrd`).
+
+<p align="center">
+  <img src="hardware/src/simulation/function_cycles.png" alt="cycle attribution by function" width="560">
+</p>
+
+The donut shows cycle attribution across the whole run. **Outer ring** — cycles per function: `main` (54.6 %), `exit` (19.0 %), `aes128_encrypt_block` (14.0 %, 55 cycles), `reset_handler` (8.6 %), and minor startup/loop symbols. **Inner ring** — within the AES kernel, the split of the 33 AES-extension instructions between the round engine (`xaesstld`/`xaesrnd`/`xaesstrd`) and the on-the-fly key schedule (`xaesksld`/`xaeskse`). The encryption itself is no longer the hot path — `main` and program teardown (`exit`) now dominate the cycle budget.
 
 ---
 
