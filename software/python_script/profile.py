@@ -15,6 +15,7 @@ No flags. Paths and constants live at the top of this file.
 """
 
 import csv
+import hashlib
 import os
 import re
 import sys
@@ -52,6 +53,39 @@ FUNC_CYCLES_PNG = os.path.join(_SIM_DIR, 'function_cycles.png')
 # 0x8000, so subtract this from map addresses before comparing to trace PCs.
 PC_OFFSET = 0x8000
 TOP_N = 20
+
+# Fixed function -> outer-ring colour map. Wedge colour must track function
+# *identity*, not its cycle-count rank, so the same function keeps one colour
+# across runs and across branches (otherwise matplotlib's default cycle paints
+# the largest slice blue, 2nd orange, ... and colours shuffle when ranks move).
+# Any function not listed falls back to a name-hashed palette entry, which is
+# also deterministic across branches.
+FUNC_COLORS = {
+    'main':                 '#1f77b4',  # blue
+    'exit':                 '#ff7f0e',  # orange
+    'aes128_encrypt_block': '#2ca02c',  # green
+    'reset_handler':        '#d62728',  # red
+    'zero_loop_end':        '#9467bd',  # purple
+    'zero_loop':            '#8c564b',  # brown
+    '_start':               '#17becf',  # cyan
+    '<unknown>':            '#7f7f7f',  # grey
+}
+# Reserve a stable colour for the aggregated "other (N funcs)" wedge.
+FUNC_OTHER_COLOR = '#bbbbbb'
+# Deterministic fallbacks for any function not named above (avoids the inner
+# ring's magenta/violet/grey so the two rings stay distinguishable).
+_FUNC_FALLBACK = ['#bcbd22', '#aec7e8', '#ffbb78', '#98df8a', '#ff9896',
+                  '#c5b0d5', '#c49c94', '#f7b6d2', '#dbdb8d', '#9edae5']
+
+
+def _func_color(label):
+    """Stable colour for an outer-ring label, independent of slice size."""
+    if label.startswith('other ('):
+        return FUNC_OTHER_COLOR
+    if label in FUNC_COLORS:
+        return FUNC_COLORS[label]
+    h = int(hashlib.md5(label.encode('utf-8')).hexdigest(), 16)
+    return _FUNC_FALLBACK[h % len(_FUNC_FALLBACK)]
 
 # AES-related custom mnemonics. aes32esmi/aes32esi are the pure round/sub
 # helpers from xaes32esmi/xaes32esi; xaesksld/xaeskse/xaesksrd drive the
@@ -558,9 +592,11 @@ def _plot_function_cycles(ordered, func_mnem_count, total_cycles):
     # them as content rather than clipping at the figure edge.
     fig, ax = plt.subplots(figsize=(15, 7))
 
-    # Outer ring: per function.
+    # Outer ring: per function. Colour by function identity (fixed map), not
+    # by slice order, so colours are stable across runs and branches.
+    outer_colors = [_func_color(l) for l in labels]
     outer_wedges, _ = ax.pie(
-        sizes, radius=1.0, startangle=90,
+        sizes, radius=1.0, startangle=90, colors=outer_colors,
         wedgeprops={'width': 0.3, 'edgecolor': 'white'})
 
     # Inner ring: each outer slice split into
