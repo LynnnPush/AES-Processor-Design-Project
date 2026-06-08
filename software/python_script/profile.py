@@ -595,8 +595,9 @@ def _plot_function_cycles(ordered, func_mnem_count, total_cycles):
                                               round_sizes, keyexp_sizes)]
     outer_legend = ax.legend(
         outer_wedges, legend_labels,
-        loc='center left', bbox_to_anchor=(1.02, 0.5),
-        fontsize=9, frameon=False, title='function (outer ring)')
+        loc='center left', bbox_to_anchor=(1.02, 0.66),
+        fontsize=13, title_fontsize=15, frameon=False,
+        title='function (outer ring)')
     ax.add_artist(outer_legend)
 
     total_round = sum(round_sizes)
@@ -619,13 +620,29 @@ def _plot_function_cycles(ordered, func_mnem_count, total_cycles):
                        f'{total_keyexp / total_aes * 100:.1f}%')
     inner_legend = ax.legend(
         handles=inner_handles,
-        loc='lower left', bbox_to_anchor=(1.02, -0.02),
-        fontsize=9, frameon=False, title=inner_title)
+        loc='center left', bbox_to_anchor=(1.02, 0.24),
+        fontsize=13, title_fontsize=15, frameon=False, title=inner_title)
 
-    ax.set_title('Cycle attribution by function '
-                 '(inner ring: AES vs non-AES)')
+    suptitle = fig.suptitle(
+        'Cycle attribution by function (inner ring: AES vs non-AES)',
+        fontsize=16, y=0.98)
+
+    # Center the title over the *full* cropped content (donut + both legends),
+    # not the figure midpoint — savefig's tight crop includes the wide legend
+    # column on the right (via bbox_extra_artists), shifting the true visual
+    # center rightward. fig.get_tightbbox() under-counts those legends, so we
+    # union the artists' own window extents instead.
+    fig.canvas.draw()
+    _r = fig.canvas.get_renderer()
+    _inv = fig.dpi_scale_trans.inverted()
+    _boxes = [a.get_window_extent(_r).transformed(_inv)
+              for a in (ax, outer_legend, inner_legend)]
+    _x0 = min(b.x0 for b in _boxes)
+    _x1 = max(b.x1 for b in _boxes)
+    suptitle.set_x(0.5 * (_x0 + _x1) / fig.get_size_inches()[0])
+
     fig.savefig(FUNC_CYCLES_PNG, dpi=150, bbox_inches='tight',
-                bbox_extra_artists=(outer_legend, inner_legend))
+                bbox_extra_artists=(outer_legend, inner_legend, suptitle))
     plt.close(fig)
 
 
