@@ -12,7 +12,7 @@
 // Description:    Stateful, round-at-a-time AES-128 encryption accelerator.  //
 //                 Holds the 128-bit cipher state in an internal register     //
 //                 (st_q[0:3]) and advances it by one full forward round      //
-//                 per cycle: SubBytes -> ShiftRows -> MixColumns ->          //
+//                 per cycle: ShiftRows -> SubBytes -> MixColumns ->          //
 //                 AddRoundKey. The AddRoundKey term is supplied directly by  //
 //                 the adjacent key-schedule unit (krk_i is the live 128-bit  //
 //                 round key), so middle/final rounds need NO GPR operands.   //
